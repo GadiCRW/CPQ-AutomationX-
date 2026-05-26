@@ -167,6 +167,19 @@ small{font-size:11px;color:var(--gray-500)}
 .gemini-chip{background:var(--teal-light);color:var(--teal);border:1px solid var(--teal-mid);border-radius:12px;padding:3px 10px;font-size:11px;cursor:pointer;transition:all .15s}
 .gemini-chip:hover{background:var(--teal);color:white}
 
+
+/* ===== SPECS POPUP ===== */
+.specs-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:700;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.specs-overlay.open{opacity:1;pointer-events:all}
+.specs-box{background:white;border-radius:var(--radius);box-shadow:var(--shadow-lg);width:600px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;transform:translateY(12px);transition:transform .2s;overflow:hidden}
+.specs-overlay.open .specs-box{transform:translateY(0)}
+.specs-hdr{background:var(--navy);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.specs-hdr h3{font-size:14px;font-weight:600;margin:0}
+.specs-body{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+.specs-textarea{font-family:'DM Mono',monospace;font-size:12px;padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);resize:vertical;min-height:280px;line-height:1.6;color:var(--gray-900);transition:border-color .15s;width:100%;}
+.specs-textarea:focus{outline:none;border-color:var(--teal-mid);box-shadow:0 0 0 3px rgba(45,154,166,.12)}
+.specs-preview{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:12px;font-size:11px;line-height:1.7;color:var(--gray-700);max-height:160px;overflow-y:auto;white-space:pre-wrap;font-family:'DM Mono',monospace;}
+
 </style>
 </head>
 <body>
@@ -453,6 +466,7 @@ function addItem(preset={}) {
     costo: preset.costo||0,
     aplicarMg: preset.aplicarMg !== undefined ? preset.aplicarMg : defaultMg,
     manualMg: preset.manualMg || null,  // null = usar margen global
+    specs: preset.specs || '',  // technical specifications
   };
   items.push(item);
   renderItems();
@@ -480,7 +494,15 @@ function renderItems() {
       <td><select onchange="updateItem(${item.id},'cat',this.value)" style="font-size:11px;">
         ${CATEGORIES.map(c=>`<option value="${c.value}" ${c.value===item.cat?'selected':''}>${c.label}</option>`).join('')}
       </select></td>
-      <td><input type="text" value="${escHtml(item.desc)}" placeholder="Descripción..." onchange="updateItem(${item.id},'desc',this.value)"></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <input type="text" value="${escHtml(item.desc)}" placeholder="Nombre del producto..." onchange="updateItem(${item.id},'desc',this.value)" style="flex:1;">
+          <button onclick="openSpecsPopup(${item.id})" title="Editar especificaciones técnicas"
+            style="flex-shrink:0;width:28px;height:28px;border:1.5px solid ${item.specs?'var(--teal)':'var(--gray-300)'};background:${item.specs?'var(--teal-light)':'white'};border-radius:5px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">
+            ${item.specs?'📋':'📄'}
+          </button>
+        </div>
+      </td>
       <td><input type="number" value="${item.qty}" min="0.01" step="0.01" onchange="updateItem(${item.id},'qty',parseFloat(this.value)||0)"></td>
       <td><select onchange="updateItem(${item.id},'tipo_unidad',this.value)" style="font-size:11px;">
         ${UNIT_TYPES.map(u=>`<option value="${u.value}" ${u.value===item.tipo_unidad?'selected':''}>${u.label}</option>`).join('')}
@@ -939,7 +961,7 @@ function generateWord() {
     const bg=i%2===0?'#FFFFFF':'#F8F9FA';
     return `<tr>
       <td style="width:55pt;padding:5pt 7pt;border:1pt solid #DEE2E6;text-align:center;font-size:9pt;background:${bg};">${fmtNum(item.qty)}${uLabel}</td>
-      <td style="padding:5pt 7pt;border:1pt solid #DEE2E6;font-size:9pt;background:${bg};">${escHtml(item.desc||'')}</td>
+      <td style="padding:5pt 7pt;border:1pt solid #DEE2E6;font-size:9pt;background:${bg};vertical-align:top;">${formatItemDesc(item)}</td>
       <td style="width:80pt;padding:5pt 7pt;border:1pt solid #DEE2E6;text-align:right;font-size:9pt;background:${bg};">${cur} ${fmtNum(unitVenta,2)}</td>
       <td style="width:80pt;padding:5pt 7pt;border:1pt solid #DEE2E6;text-align:right;font-size:9pt;font-weight:bold;background:${bg};">${cur} ${fmtNum(venta,2)}</td>
     </tr>`;
@@ -1007,6 +1029,19 @@ table { border-collapse:collapse; }
 .gemini-chips{display:flex;flex-wrap:wrap;gap:5px;padding:0 14px 8px;}
 .gemini-chip{background:var(--teal-light);color:var(--teal);border:1px solid var(--teal-mid);border-radius:12px;padding:3px 10px;font-size:11px;cursor:pointer;transition:all .15s}
 .gemini-chip:hover{background:var(--teal);color:white}
+
+
+/* ===== SPECS POPUP ===== */
+.specs-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:700;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.specs-overlay.open{opacity:1;pointer-events:all}
+.specs-box{background:white;border-radius:var(--radius);box-shadow:var(--shadow-lg);width:600px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;transform:translateY(12px);transition:transform .2s;overflow:hidden}
+.specs-overlay.open .specs-box{transform:translateY(0)}
+.specs-hdr{background:var(--navy);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.specs-hdr h3{font-size:14px;font-weight:600;margin:0}
+.specs-body{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+.specs-textarea{font-family:'DM Mono',monospace;font-size:12px;padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);resize:vertical;min-height:280px;line-height:1.6;color:var(--gray-900);transition:border-color .15s;width:100%;}
+.specs-textarea:focus{outline:none;border-color:var(--teal-mid);box-shadow:0 0 0 3px rgba(45,154,166,.12)}
+.specs-preview{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:12px;font-size:11px;line-height:1.7;color:var(--gray-700);max-height:160px;overflow-y:auto;white-space:pre-wrap;font-family:'DM Mono',monospace;}
 
 </style>
 </head>
@@ -1135,6 +1170,38 @@ ${v('cl_notas')?`<p style="font-size:9pt;font-style:italic;color:#555;margin-bot
     </td>
   </tr>
 </table>
+
+<!-- ===== SPECS POPUP ===== -->
+<div class="specs-overlay" id="specs-modal" onclick="if(event.target===this)closeSpecsPopup()">
+  <div class="specs-box">
+    <div class="specs-hdr">
+      <h3>📋 Especificaciones técnicas</h3>
+      <button onclick="closeSpecsPopup()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;">✕</button>
+    </div>
+    <div class="specs-body">
+      <div class="field">
+        <label>Nombre / descripción corta del producto</label>
+        <input type="text" id="specs-name" placeholder="Ej. Transmisor de nivel por radar" style="font-size:13px;">
+      </div>
+      <div class="field">
+        <label>Especificaciones técnicas <span style="font-weight:400;color:var(--gray-500);">— una característica por línea</span></label>
+        <textarea class="specs-textarea" id="specs-content"
+          placeholder="Número del artículo: 575839&#10;Tipo de sensor: Radar&#10;Precisión de medición: 2 mm&#10;Rango: 0 - 20 m&#10;Tensión: 12-35 V DC&#10;Protocolo: HART + Bluetooth&#10;Grado de protección: IP66/67"
+          oninput="updateSpecsPreview()"></textarea>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Vista previa en documento</div>
+        <div class="specs-preview" id="specs-preview">—</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--gray-200);">
+        <button class="btn btn-secondary" onclick="closeSpecsPopup()">Cancelar</button>
+        <button class="btn btn-danger btn-sm" onclick="clearSpecs()" style="margin-right:auto;">🗑 Limpiar</button>
+        <button class="btn btn-primary" onclick="saveSpecs()">✓ Guardar especificaciones</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body></html>`;
 
 
@@ -1358,20 +1425,43 @@ function generatePDFBase64() {
     const unitVenta = item.qty>0?venta/item.qty:0;
     const uLabel = {unidad:'',hora:' hr.',dia:' dia'}[item.tipo_unidad]||'';
     const desc = item.desc||'';
-    // wrap long descriptions
-    const descLines = doc.splitTextToSize(desc, 100);
-    const rh = Math.max(7, descLines.length*4.5);
+    const specs = item.specs||'';
+    const specLines = specs ? specs.split('\n').filter(l=>l.trim()) : [];
+
+    // Calculate row height based on name + specs
+    const nameLines = doc.splitTextToSize(desc, 98);
+    const totalLines = nameLines.length + specLines.length;
+    const rh = Math.max(8, nameLines.length*5 + specLines.length*4.2 + (specLines.length>0?3:0));
 
     setFill(i%2===0?[248,249,250]:WHITE);
     doc.rect(M, y, CW, rh, 'F');
     setDraw([222,226,230]); doc.rect(M, y, CW, rh, 'S');
+
+    // Quantity
     setFont('normal',8); setColor([33,37,41]);
-    doc.text(fmtNum(item.qty)+uLabel, M+2, y+rh/2+1.5);
-    doc.text(descLines, M+22, y+5);
+    doc.text(fmtNum(item.qty)+uLabel, M+2, y+6);
+
+    // Product name (bold)
+    setFont('bold',8.5); setColor([33,37,41]);
+    doc.text(nameLines, M+22, y+5.5);
+
+    // Specs lines (smaller, gray)
+    if(specLines.length>0) {
+      setFont('normal',7); setColor([90,100,110]);
+      let sy = y + nameLines.length*5 + 3;
+      specLines.forEach(line => {
+        const wrapped = doc.splitTextToSize(line.trim(), 98);
+        doc.text(wrapped, M+22, sy);
+        sy += wrapped.length*4;
+      });
+    }
+
+    // Prices aligned to middle of row
+    const midY = y + rh/2 + 1.5;
     setFont('normal',8); setColor(TEAL);
-    doc.text(cur+' '+fmtNum(unitVenta,2), M+CW-32, y+rh/2+1.5, {align:'right'});
-    setFont('bold',8);
-    doc.text(cur+' '+fmtNum(venta,2), M+CW-2, y+rh/2+1.5, {align:'right'});
+    doc.text(cur+' '+fmtNum(unitVenta,2), M+CW-32, midY, {align:'right'});
+    setFont('bold',8); setColor([33,37,41]);
+    doc.text(cur+' '+fmtNum(venta,2), M+CW-2, midY, {align:'right'});
     y += rh;
 
     // page break check
@@ -1521,6 +1611,65 @@ function generateExcelBase64() {
 
 
 
+
+// ===== SPECS POPUP =====
+let currentSpecsItemId = null;
+
+function openSpecsPopup(itemId) {
+  currentSpecsItemId = itemId;
+  const item = items.find(i=>i.id===itemId);
+  if(!item) return;
+  document.getElementById('specs-name').value = item.desc || '';
+  document.getElementById('specs-content').value = item.specs || '';
+  updateSpecsPreview();
+  document.getElementById('specs-modal').classList.add('open');
+  document.getElementById('specs-name').focus();
+}
+
+function closeSpecsPopup() {
+  document.getElementById('specs-modal').classList.remove('open');
+  currentSpecsItemId = null;
+}
+
+function clearSpecs() {
+  document.getElementById('specs-content').value = '';
+  updateSpecsPreview();
+}
+
+function updateSpecsPreview() {
+  const specs = document.getElementById('specs-content').value.trim();
+  const preview = document.getElementById('specs-preview');
+  preview.textContent = specs || '(sin especificaciones)';
+}
+
+function saveSpecs() {
+  if(!currentSpecsItemId) return;
+  const item = items.find(i=>i.id===currentSpecsItemId);
+  if(!item) return;
+  item.desc = document.getElementById('specs-name').value.trim();
+  item.specs = document.getElementById('specs-content').value.trim();
+  closeSpecsPopup();
+  renderItems();
+}
+
+// Helper: format item description for Word/PDF
+function formatItemDesc(item) {
+  // Returns HTML-safe string with name bold + specs lines
+  const name = item.desc || '';
+  const specs = item.specs || '';
+  if(!specs) return escHtml(name);
+  const lines = specs.split('\n').filter(l=>l.trim());
+  return `<strong>${escHtml(name)}</strong>${lines.map(l=>`<br><span style="font-size:8pt;color:#444;">${escHtml(l.trim())}</span>`).join('')}`;
+}
+
+function formatItemDescPlain(item) {
+  // Returns plain text for contexts that don't support HTML
+  const name = item.desc || '';
+  const specs = item.specs || '';
+  if(!specs) return name;
+  return name + '\n' + specs;
+}
+
 // ===== GEMINI ASSISTANT =====
 let geminiHistory = [];
 
@@ -1576,7 +1725,7 @@ function buildQuoteContext() {
     const totCosto=(item.qty||0)*(item.costo||0)+(nacMap[item.id]||0);
     const {venta}=calcItemVenta(item,totCosto);
     const cat=CATEGORIES.find(c=>c.value===item.cat);
-    return `  ${i+1}. [${cat?cat.label:'?'}] ${item.desc||'(sin desc)'} — Cant: ${item.qty} ${item.tipo_unidad} — Costo unit: ${item.costo} — Venta: ${fmtCur(venta)}`;
+    return `  ${i+1}. [${cat?cat.label:'?'}] ${item.desc||'(sin desc)'}${item.specs?' [con specs]':''} — Cant: ${item.qty} ${item.tipo_unidad} — Costo unit: ${item.costo} — Venta: ${fmtCur(venta)}`;
   }).join('\n');
   return `Contexto de la cotización actual:
 - Cliente: ${v('cl_empresa')||'(no ingresado)'}
@@ -1786,6 +1935,38 @@ ${buildQuoteContext()}`;
       <button class="gemini-send" id="gemini-send-btn" onclick="sendGemini()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
       </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== SPECS POPUP ===== -->
+<div class="specs-overlay" id="specs-modal" onclick="if(event.target===this)closeSpecsPopup()">
+  <div class="specs-box">
+    <div class="specs-hdr">
+      <h3>📋 Especificaciones técnicas</h3>
+      <button onclick="closeSpecsPopup()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;">✕</button>
+    </div>
+    <div class="specs-body">
+      <div class="field">
+        <label>Nombre / descripción corta del producto</label>
+        <input type="text" id="specs-name" placeholder="Ej. Transmisor de nivel por radar" style="font-size:13px;">
+      </div>
+      <div class="field">
+        <label>Especificaciones técnicas <span style="font-weight:400;color:var(--gray-500);">— una característica por línea</span></label>
+        <textarea class="specs-textarea" id="specs-content"
+          placeholder="Número del artículo: 575839&#10;Tipo de sensor: Radar&#10;Precisión de medición: 2 mm&#10;Rango: 0 - 20 m&#10;Tensión: 12-35 V DC&#10;Protocolo: HART + Bluetooth&#10;Grado de protección: IP66/67"
+          oninput="updateSpecsPreview()"></textarea>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Vista previa en documento</div>
+        <div class="specs-preview" id="specs-preview">—</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--gray-200);">
+        <button class="btn btn-secondary" onclick="closeSpecsPopup()">Cancelar</button>
+        <button class="btn btn-danger btn-sm" onclick="clearSpecs()" style="margin-right:auto;">🗑 Limpiar</button>
+        <button class="btn btn-primary" onclick="saveSpecs()">✓ Guardar especificaciones</button>
+      </div>
     </div>
   </div>
 </div>
