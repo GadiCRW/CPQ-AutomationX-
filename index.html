@@ -225,7 +225,10 @@ small{font-size:11px;color:var(--gray-500)}
     </div>
     <div class="card">
       <div class="card-header"><div class="card-icon">💬</div><div class="card-title">Notas adicionales</div></div>
-      <div class="card-body"><div class="field"><label>Observaciones / Alcances</label><textarea id="cl_notas" placeholder="Ej. Precio incluye instalación en sitio..."></textarea></div></div>
+      <div class="card-body">
+        <div class="field"><label>Observaciones / Alcances</label><textarea id="cl_notas" placeholder="Ej. Precio incluye instalación en sitio..."></textarea></div>
+        <div class="field" style="margin-top:12px;"><label>Mensaje de cierre (aparece al pie del documento)</label><textarea id="cl_cierre" placeholder="Ej. Agradecemos la oportunidad de participar en su proceso de adquisición. Quedamos a sus órdenes para cualquier consulta adicional." style="min-height:64px;"></textarea></div>
+      </div>
     </div>
   </div>
 
@@ -454,6 +457,8 @@ function addItem(preset={}) {
     tipo_unidad: preset.tipo_unidad||'unidad',
     costo: preset.costo||0,
     aplicarMg: preset.aplicarMg !== undefined ? preset.aplicarMg : defaultMg,
+    applyMgG: preset.applyMgG !== undefined ? preset.applyMgG : defaultMg,
+    applyMgS: preset.applyMgS !== undefined ? preset.applyMgS : defaultMg,
     manualMg: preset.manualMg || null,  // null = usar margen global
     specs: preset.specs || '',  // technical specifications
   };
@@ -503,16 +508,24 @@ function renderItems() {
       <td><input type="number" value="${item.costo}" min="0" step="0.01" onchange="updateItem(${item.id},'costo',parseFloat(this.value)||0)"></td>
       <td class="td-total" id="cell-nac-${item.id}" style="${nacStyle}" title="${nacAmt>0?'Total nac: '+fmtCur(nacAmt):''}">${nacAmt>0?fmtCur(nacAmt/(item.qty||1))+'/und'+'<br><span style="font-size:10px;font-weight:400;opacity:.7;">Total: '+fmtCur(nacAmt)+'</span>':'—'}</td>
       <td class="td-total" id="cell-costo-${item.id}">${fmtCur(totCosto)}</td>
-      <td style="text-align:center;vertical-align:middle;">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
-          <label class="mg-toggle ${item.aplicarMg?'active':''}">
-            <input type="checkbox" ${item.aplicarMg?'checked':''} onchange="updateItem(${item.id},'aplicarMg',this.checked);this.parentElement.classList.toggle('active',this.checked)">
-            <span>${item.aplicarMg?'Sí':'No'}</span>
+      <td style="text-align:center;vertical-align:middle;min-width:90px;">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:2px 4px;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:${item.applyMgG?'var(--teal)':'var(--gray-500)'};">
+            <input type="checkbox" ${item.applyMgG?'checked':''} 
+              onchange="updateItem(${item.id},'applyMgG',this.checked)"
+              style="accent-color:var(--teal);width:12px;height:12px;">
+            <span style="font-weight:${item.applyMgG?'600':'400'};">Gan.</span>
           </label>
-          ${item.aplicarMg?`<input type="number" placeholder="% global" value="${item.manualMg||''}" min="0" max="500" step="0.5"
-            title="Margen manual (deja vacío para usar el global)"
-            onchange="updateItem(${item.id},'manualMg',this.value===''?null:parseFloat(this.value))"
-            style="width:68px;font-size:11px;padding:3px 5px;border:1.5px solid var(--gray-300);border-radius:4px;text-align:center;font-family:'DM Mono',monospace;background:${item.manualMg!==null&&item.manualMg!==undefined&&item.manualMg!==''?'#fff8e1':'white'};">`:``}
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:${item.applyMgS?'var(--teal-mid)':'var(--gray-500)'};">
+            <input type="checkbox" ${item.applyMgS?'checked':''} 
+              onchange="updateItem(${item.id},'applyMgS',this.checked)"
+              style="accent-color:var(--teal-mid);width:12px;height:12px;">
+            <span style="font-weight:${item.applyMgS?'600':'400'};">Seg.</span>
+          </label>
+          ${(item.applyMgG||item.applyMgS)?`<input type="number" placeholder="% manual" value="${item.manualMg||''}" min="0" max="500" step="0.5"
+            title="Margen manual de ganancia (deja vacío para usar el global)"
+            oninput="updateItem(${item.id},'manualMg',this.value===''?null:parseFloat(this.value))"
+            style="width:68px;font-size:11px;padding:3px 5px;border:1.5px solid var(--gray-300);border-radius:4px;text-align:center;font-family:'DM Mono',monospace;background:${item.manualMg!==null&&item.manualMg!==undefined&&item.manualMg!==''?'#fff8e1':'white'};" >`:``}
         </div>
       </td>
       <td class="td-total" style="color:var(--green);" id="cell-venta-${item.id}">${fmtCur(venta)}</td>
@@ -527,27 +540,27 @@ function updateItem(id,field,value) {
   const item = items.find(i=>i.id==id);
   if(!item) return;
   item[field]=value;
-  // update label text for checkbox
-  if(field==='aplicarMg') {
-    const cell = document.getElementById('cell-costo-'+id);
-    const lbl = cell?.parentElement?.querySelector('.mg-toggle span');
-    if(lbl) lbl.textContent = value?'Sí':'No';
+  // keep aplicarMg in sync with individual flags
+  if(field==='applyMgG' || field==='applyMgS') {
+    item.aplicarMg = (item.applyMgG || item.applyMgS);
   }
   recalcAll();
 }
 
 function calcItemVenta(item,totCosto) {
-  const mgG = parseFloat(document.getElementById('mg_ganancia')?.value||0)/100;
-  const mgS = parseFloat(document.getElementById('mg_seguridad')?.value||0)/100;
-  const desc = parseFloat(document.getElementById('mg_descuento')?.value||0)/100;
+  const mgG = parseFloat(document.getElementById('mg_ganancia')?.value||0)/100 || 0;
+  const mgS = parseFloat(document.getElementById('mg_seguridad')?.value||0)/100 || 0;
+  const desc = parseFloat(document.getElementById('mg_descuento')?.value||0)/100 || 0;
+  // Support both old aplicarMg and new individual flags (backwards compatibility)
+  const useG = item.applyMgG !== undefined ? item.applyMgG : item.aplicarMg;
+  const useS = item.applyMgS !== undefined ? item.applyMgS : item.aplicarMg;
   let venta = totCosto;
-  if(item.aplicarMg) {
+  if(useG || useS) {
     if(item.manualMg !== null && item.manualMg !== undefined && item.manualMg !== '') {
-      // Manual margin: use it as total markup factor replacing ganancia+seguridad
-      const mg = parseFloat(item.manualMg)/100;
-      venta = totCosto * (1 + mg) * (1 - desc);
+      const mg = parseFloat(item.manualMg)/100 || 0;
+      venta = totCosto * (1 + (useG ? mg : 0)) * (1 - desc);
     } else {
-      venta = totCosto*(1+mgG)*(1+mgS)*(1-desc);
+      venta = totCosto * (useG ? (1+mgG) : 1) * (useS ? (1+mgS) : 1) * (1-desc);
     }
   }
   return {venta};
@@ -778,9 +791,10 @@ function renderSummary() {
     tr.innerHTML=`<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(item.desc||'—')}</td>
       <td><span class="rubro-category ${cat?.cls||''}" style="font-size:9px;">${cat?.label||'—'}</span></td>
       <td class="text-right mono">${fmtNum(item.qty)} ${item.tipo_unidad}</td>
-      <td style="text-align:center;font-size:11px;">${item.aplicarMg
-        ? '<span style="color:var(--teal);font-weight:600;">'+(item.manualMg!==null&&item.manualMg!==undefined&&item.manualMg!==''?item.manualMg+'%':'Global')+'</span>'
-        : '<span style="color:var(--gray-500);">No</span>'}</td>
+      <td style="text-align:center;font-size:10px;">
+        ${(item.applyMgG!==undefined?item.applyMgG:item.aplicarMg)?'<span style="color:var(--teal);font-weight:600;">G</span>':'<span style="color:var(--gray-300);">G</span>'}
+        ${(item.applyMgS!==undefined?item.applyMgS:item.aplicarMg)?'<span style="color:var(--teal-mid);font-weight:600;">S</span>':'<span style="color:var(--gray-300);">S</span>'}
+      </td>
       <td class="td-total">${fmtCur(unitVenta)}</td>
       <td class="td-total">${fmtCur(venta)}</td>`;
     ibody.appendChild(tr);
@@ -853,6 +867,7 @@ function renderPreview() {
           <tr><td style="padding:3px 8px 3px 0;font-weight:600;">Garantía:</td><td>${escHtml(v('cl_garantia'))}</td></tr>
         </table>
         ${v('cl_notas')?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-200);font-size:11px;color:var(--gray-600);">${escHtml(v('cl_notas'))}</div>`:''}
+        ${v('cl_cierre')?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-200);font-size:11px;font-style:italic;color:var(--gray-600);">${escHtml(v('cl_cierre'))}</div>`:''}
         <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--gray-200);font-size:11px;">
           <strong>Cuenta Bancaria Banco Nacional — Dólares:</strong><br>
           IBAN: CR69015100220025236751
@@ -887,13 +902,15 @@ function generateExcel() {
   ws_data.push(['Márgenes aplicados:']);
   ws_data.push(['Margen ganancia:',mgG+'%','','Margen seguridad:',mgS+'%','Descuento:',desc+'%']);
   ws_data.push([]);
-  ws_data.push(['#','Categoría','Descripción','Cantidad','Tipo',`Costo unit.(${cur})`,`Nac. prop.(${cur})`,`Total costo(${cur})`,`Margen?`,`P.unit.venta(${cur})`,`Total venta(${cur})`]);
+  ws_data.push(['#','Categoría','Descripción','Cantidad','Tipo',`Costo unit.(${cur})`,`Nac. prop.(${cur})`,`Total costo(${cur})`,`Mg.Gan.`,`Mg.Seg.`,`P.unit.venta(${cur})`,`Total venta(${cur})`]);
   items.forEach((item,idx)=>{
     const totCosto=(item.qty||0)*(item.costo||0)+(nacMap[item.id]||0);
     const {venta}=calcItemVenta(item,totCosto);
     const unitVenta=item.qty>0?venta/item.qty:0;
     const cat=CATEGORIES.find(c=>c.value===item.cat);
-    ws_data.push([idx+1,cat?cat.label:item.cat,item.desc||'',item.qty,item.tipo_unidad,item.costo,nacMap[item.id]||0,totCosto,item.aplicarMg?'Sí':'No',unitVenta,venta]);
+    const mgGLabel = (item.applyMgG!==undefined?item.applyMgG:item.aplicarMg)?'✓':'—';
+    const mgSLabel = (item.applyMgS!==undefined?item.applyMgS:item.aplicarMg)?'✓':'—';
+    ws_data.push([idx+1,cat?cat.label:item.cat,item.desc||'',item.qty,item.tipo_unidad,item.costo,nacMap[item.id]||0,totCosto,mgGLabel,mgSLabel,unitVenta,venta]);
     totalCosto+=totCosto;
   });
   ws_data.push([]);
@@ -927,7 +944,131 @@ function generateExcel() {
   }
 
   const ws=XLSX.utils.aoa_to_sheet(ws_data);
-  ws['!cols']=[{wch:4},{wch:18},{wch:38},{wch:10},{wch:12},{wch:14},{wch:14},{wch:14},{wch:8},{wch:16},{wch:14}];
+  ws['!cols']=[{wch:4},{wch:16},{wch:36},{wch:9},{wch:10},{wch:13},{wch:13},{wch:13},{wch:7},{wch:7},{wch:14},{wch:13}];
+
+  // ── Excel styling ──
+  const NAVY_XL = {fgColor:{rgb:'1A2744'}};
+  const TEAL_XL = {fgColor:{rgb:'1A6B72'}};
+  const TEAL_LIGHT = {fgColor:{rgb:'E8F4F5'}};
+  const ACCENT_XL = {fgColor:{rgb:'E8A020'}};
+  const GRAY_XL  = {fgColor:{rgb:'F1F3F5'}};
+  const GREEN_XL = {fgColor:{rgb:'E8F5EE'}};
+  const WHITE_XL = {fgColor:{rgb:'FFFFFF'}};
+
+  const headerFont = {bold:true, color:{rgb:'FFFFFF'}, name:'Arial', sz:10};
+  const titleFont  = {bold:true, color:{rgb:'FFFFFF'}, name:'Arial', sz:12};
+  const boldFont   = {bold:true, name:'Arial', sz:9};
+  const normFont   = {name:'Arial', sz:9};
+  const monoFont   = {name:'Courier New', sz:9};
+  const totalFont  = {bold:true, name:'Arial', sz:10};
+
+  const centerAlign = {horizontal:'center', vertical:'center'};
+  const rightAlign  = {horizontal:'right',  vertical:'center'};
+  const leftAlign   = {horizontal:'left',   vertical:'center'};
+
+  const border = {
+    top:{style:'thin',color:{rgb:'DEE2E6'}},
+    bottom:{style:'thin',color:{rgb:'DEE2E6'}},
+    left:{style:'thin',color:{rgb:'DEE2E6'}},
+    right:{style:'thin',color:{rgb:'DEE2E6'}}
+  };
+  const thickBorder = {
+    top:{style:'medium',color:{rgb:'1A2744'}},
+    bottom:{style:'medium',color:{rgb:'1A2744'}},
+    left:{style:'medium',color:{rgb:'1A2744'}},
+    right:{style:'medium',color:{rgb:'1A2744'}}
+  };
+
+  function styleCell(ws, addr, fill, font, alignment, numFmt) {
+    if(!ws[addr]) ws[addr] = {t:'s', v:''};
+    ws[addr].s = {};
+    if(fill) ws[addr].s.fill = {patternType:'solid', ...fill};
+    if(font) ws[addr].s.font = font;
+    if(alignment) ws[addr].s.alignment = alignment;
+    if(border) ws[addr].s.border = border;
+    if(numFmt) ws[addr].s.numFmt = numFmt;
+  }
+
+  const enc = XLSX.utils.encode_cell;
+
+  // Row 1-2: Title rows (navy background)
+  ['A1','B1','C1','D1','E1','F1','G1','H1','I1','J1','K1','L1'].forEach(addr=>{
+    if(ws[addr]) { ws[addr].s = {fill:{patternType:'solid',...NAVY_XL}, font:titleFont, alignment:centerAlign, border}; }
+  });
+  ['A2','B2','C2','D2','E2','F2','G2','H2','I2','J2','K2','L2'].forEach(addr=>{
+    if(ws[addr]) { ws[addr].s = {fill:{patternType:'solid',...NAVY_XL}, font:titleFont, alignment:centerAlign, border}; }
+  });
+
+  // Find the header row (row with '#','Categoría', etc.) — it's row 11 (index 10)
+  const headerRow = 11;
+  const cols = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  cols.forEach(col=>{
+    const addr = col+headerRow;
+    if(ws[addr]) { ws[addr].s = {fill:{patternType:'solid',...TEAL_XL}, font:headerFont, alignment:centerAlign, border}; }
+  });
+
+  // Style info rows (4-6) with light teal
+  [4,5,6].forEach(r=>{
+    ['A','B','C','D','E'].forEach(c=>{
+      const addr = c+r;
+      if(ws[addr]) { ws[addr].s = {fill:{patternType:'solid',...TEAL_LIGHT}, font:boldFont, alignment:leftAlign, border}; }
+    });
+  });
+
+  // Style margin info row (9)
+  ['A9','B9','C9','D9','E9','F9','G9'].forEach(addr=>{
+    if(ws[addr]) { ws[addr].s = {fill:{patternType:'solid',fgColor:{rgb:'FDF3E0'}}, font:boldFont, alignment:leftAlign, border}; }
+  });
+
+  // Style data rows (alternating)
+  const dataStartRow = headerRow + 1;
+  const dataEndRow = dataStartRow + items.length - 1;
+  for(let r=dataStartRow; r<=dataEndRow; r++){
+    const isEven = (r-dataStartRow)%2===0;
+    const rowFill = isEven ? {fgColor:{rgb:'FFFFFF'}} : {fgColor:{rgb:'F8F9FA'}};
+    cols.forEach((c,ci)=>{
+      const addr = c+r;
+      if(ws[addr]) {
+        const isNum = ci >= 5; // numeric columns
+        const isTotal = ci === 7; // total costo
+        const isVenta = ci === 11; // total venta
+        const isMg = ci === 8 || ci === 9; // margin flags
+        ws[addr].s = {
+          fill:{patternType:'solid',...rowFill},
+          font: isTotal||isVenta ? {...boldFont, color:{rgb: isVenta?'1A6B72':'1A2744'}} : normFont,
+          alignment: isNum ? rightAlign : (ci===0||isMg ? centerAlign : leftAlign),
+          border,
+          numFmt: isNum && !isMg ? '"$"#,##0.00' : undefined
+        };
+        if(isMg && ws[addr].v==='✓') {
+          ws[addr].s.font = {...boldFont, color:{rgb:'1A6B72'}};
+          ws[addr].s.fill = {patternType:'solid',...TEAL_LIGHT};
+        }
+      }
+    });
+  }
+
+  // Style totals rows (last 5 rows)
+  const totStartRow = dataEndRow + 2;
+  for(let r=totStartRow; r<=totStartRow+4; r++){
+    ['J','K','L'].forEach(c=>{
+      const addr=c+r;
+      if(ws[addr]){
+        const isGrandTotal = ws['J'+r]?.v === 'TOTAL:';
+        ws[addr].s = {
+          fill:{patternType:'solid', fgColor:{rgb: isGrandTotal?'1A2744':'F8F9FA'}},
+          font: isGrandTotal ? {...totalFont, color:{rgb: isGrandTotal?'FFFFFF':'1A2744'}} : boldFont,
+          alignment: rightAlign,
+          border: isGrandTotal ? thickBorder : border,
+          numFmt:'"$"#,##0.00'
+        };
+      }
+    });
+  }
+
+  // Freeze header rows
+  ws['!freeze'] = {xSplit:0, ySplit:headerRow, topLeftCell:enc({r:headerRow,c:0}), activeCell:enc({r:headerRow,c:0}), sqref:enc({r:headerRow,c:0})};
+
   XLSX.utils.book_append_sheet(wb,ws,'Cálculo de Costos');
   // reorder so Costos is first
   wb.SheetNames=['Cálculo de Costos',...wb.SheetNames.filter(n=>n!=='Cálculo de Costos')];
@@ -1052,7 +1193,7 @@ ${v('cl_notas')?`<p style="font-size:9pt;font-style:italic;color:#555;margin-bot
 <!-- BANK INFO -->
 <p style="font-size:9pt;margin-bottom:4pt;"><b>Cuenta Bancaria de Banco Nacional - Dolares:</b></p>
 <p style="font-size:9pt;margin-bottom:10pt;">Cuenta IBAN: <b>CR69015100220025236751</b></p>
-<p style="font-size:9pt;margin-bottom:14pt;">Agradeciendo la atencion prestada a la presente me suscribo quedando a las ordenes.</p>
+<p style="font-size:9pt;font-style:italic;color:#444;margin-bottom:14pt;">${escHtml(v('cl_cierre')||'Agradeciendo la atencion prestada a la presente me suscribo quedando a las ordenes.')}</p>
 
 <!-- FOOTER: CONDITIONS LEFT + TOTALS RIGHT -->
 <table width="100%" cellpadding="0" cellspacing="0">
@@ -1408,7 +1549,11 @@ function generatePDFBase64() {
   doc.text('Cuenta IBAN: CR69015100220025236751', M, y);
   y += 8;
   setFont('italic',8); setColor(GRAY);
-  doc.text('Agradeciendo la atencion prestada a la presente me suscribo quedando a las ordenes.', M, y);
+  const cierreText = (typeof v === 'function' ? v('cl_cierre') : '') || 'Agradeciendo la atencion prestada a la presente me suscribo quedando a las ordenes.';
+  setFont('italic',8); setColor(GRAY);
+  const cierreLines = doc.splitTextToSize(cierreText, CW);
+  doc.text(cierreLines, M, y);
+  y += cierreLines.length * 4.5;
   y += 10;
 
   // ── FOOTER: CONDITIONS + TOTALS ──
