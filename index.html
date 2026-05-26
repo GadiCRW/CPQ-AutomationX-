@@ -1425,8 +1425,9 @@ function generatePDFBase64() {
     const unitVenta = item.qty>0?venta/item.qty:0;
     const uLabel = {unidad:'',hora:' hr.',dia:' dia'}[item.tipo_unidad]||'';
     const desc = item.desc||'';
-    const specs = item.specs||'';
-    const specLines = specs ? specs.split('\n').filter(l=>l.trim()) : [];
+    const specs = (item.specs||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    const specLines = specs.length>0 ? specs.split('\n').filter(l=>l.trim()) : [];
+    console.log('PDF item:', desc, '| specs length:', specLines.length, '| raw specs:', JSON.stringify(specs.substring(0,80)));
 
     // Column layout: qty=20mm, desc starts at M+22, prices use last 36mm
     const descColW = CW - 22 - 36; // available width for description text
