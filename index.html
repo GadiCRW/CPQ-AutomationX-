@@ -168,17 +168,6 @@ small{font-size:11px;color:var(--gray-500)}
 .gemini-chip:hover{background:var(--teal);color:white}
 
 
-/* ===== SPECS POPUP ===== */
-.specs-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:700;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
-.specs-overlay.open{opacity:1;pointer-events:all}
-.specs-box{background:white;border-radius:var(--radius);box-shadow:var(--shadow-lg);width:600px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;transform:translateY(12px);transition:transform .2s;overflow:hidden}
-.specs-overlay.open .specs-box{transform:translateY(0)}
-.specs-hdr{background:var(--navy);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-.specs-hdr h3{font-size:14px;font-weight:600;margin:0}
-.specs-body{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
-.specs-textarea{font-family:'DM Mono',monospace;font-size:12px;padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);resize:vertical;min-height:280px;line-height:1.6;color:var(--gray-900);transition:border-color .15s;width:100%;}
-.specs-textarea:focus{outline:none;border-color:var(--teal-mid);box-shadow:0 0 0 3px rgba(45,154,166,.12)}
-.specs-preview{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:12px;font-size:11px;line-height:1.7;color:var(--gray-700);max-height:160px;overflow-y:auto;white-space:pre-wrap;font-family:'DM Mono',monospace;}
 
 </style>
 </head>
@@ -494,14 +483,18 @@ function renderItems() {
       <td><select onchange="updateItem(${item.id},'cat',this.value)" style="font-size:11px;">
         ${CATEGORIES.map(c=>`<option value="${c.value}" ${c.value===item.cat?'selected':''}>${c.label}</option>`).join('')}
       </select></td>
-      <td>
-        <div style="display:flex;align-items:center;gap:5px;">
-          <input type="text" value="${escHtml(item.desc)}" placeholder="Nombre del producto..." onchange="updateItem(${item.id},'desc',this.value)" style="flex:1;">
-          <button onclick="openSpecsPopup(${item.id})" title="Editar especificaciones técnicas"
-            style="flex-shrink:0;width:28px;height:28px;border:1.5px solid ${item.specs?'var(--teal)':'var(--gray-300)'};background:${item.specs?'var(--teal-light)':'white'};border-radius:5px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">
-            ${item.specs?'📋':'📄'}
-          </button>
-        </div>
+      <td style="min-width:200px;">
+        <input type="text" value="${escHtml(item.desc)}" placeholder="Nombre del producto..." 
+          onchange="updateItem(${item.id},'desc',this.value)" 
+          style="width:100%;margin-bottom:${item.specs!==undefined&&item.specs!==''?'4px':'0'};">
+        <textarea id="specs-ta-${item.id}"
+          placeholder="Especificaciones técnicas (una por línea)..."
+          oninput="updateItem(${item.id},'specs',this.value)"
+          style="width:100%;font-family:'DM Mono',monospace;font-size:11px;padding:4px 6px;border:1.5px solid var(--teal-mid);border-radius:4px;resize:vertical;min-height:60px;display:${item.specs!==undefined&&item.specs!==''?'block':'none'};background:var(--teal-light);color:var(--gray-900);">${escHtml(item.specs||'')}</textarea>
+        <button onclick="toggleSpecs(${item.id})" 
+          style="margin-top:3px;font-size:10px;padding:2px 7px;border:1px solid var(--gray-300);background:${item.specs?'var(--teal-light)':'var(--gray-50)'};color:${item.specs?'var(--teal)':'var(--gray-500)'};border-radius:4px;cursor:pointer;font-family:'DM Sans',sans-serif;">
+          ${item.specs?'📋 Specs':'+ Specs'}
+        </button>
       </td>
       <td><input type="number" value="${item.qty}" min="0.01" step="0.01" onchange="updateItem(${item.id},'qty',parseFloat(this.value)||0)"></td>
       <td><select onchange="updateItem(${item.id},'tipo_unidad',this.value)" style="font-size:11px;">
@@ -820,7 +813,7 @@ function renderPreview() {
     const uLabel={unidad:'und.',hora:'hr.',dia:'día'}[item.tipo_unidad]||'';
     return `<tr>
       <td style="width:70px;">${fmtNum(item.qty)} ${uLabel}</td>
-      <td>${escHtml(item.desc||'—')}</td>
+      <td>${escHtml(item.desc||'—')}${item.specs?'<br><span style="font-size:10px;color:var(--gray-500);font-family:monospace;white-space:pre-wrap;">'+escHtml(item.specs)+'</span>':''}</td>
       <td style="text-align:right;white-space:nowrap;">${cur} ${fmtNum(unitVenta,2)}</td>
       <td style="text-align:right;white-space:nowrap;font-weight:600;">${cur} ${fmtNum(venta,2)}</td>
     </tr>`;
@@ -982,67 +975,6 @@ function generateWord() {
 body { font-family:Arial,sans-serif; font-size:10pt; color:#212529; }
 p { margin:0 0 6pt 0; }
 table { border-collapse:collapse; }
-
-/* ===== CURRENCY CALCULATOR MODAL ===== */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
-.modal-overlay.open{opacity:1;pointer-events:all}
-.modal-box{background:white;border-radius:var(--radius);box-shadow:var(--shadow-lg);width:480px;max-width:95vw;overflow:hidden;transform:translateY(16px);transition:transform .2s}
-.modal-overlay.open .modal-box{transform:translateY(0)}
-.modal-hdr{background:var(--navy);color:white;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
-.modal-hdr h3{font-size:15px;font-weight:600;margin:0}
-.modal-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:20px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:4px}
-.modal-close:hover{color:white;background:rgba(255,255,255,.15)}
-.modal-body{padding:20px}
-.calc-row{display:flex;gap:10px;align-items:flex-end;margin-bottom:14px}
-.calc-result{background:var(--teal-light);border:1px solid var(--teal-mid);border-radius:8px;padding:14px;text-align:center;margin-top:4px}
-.calc-result .res-val{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:var(--navy)}
-.calc-result .res-label{font-size:11px;color:var(--gray-600);margin-top:2px}
-.rate-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 8px;border-radius:12px;background:var(--gray-100);color:var(--gray-600);margin-top:8px}
-.rate-badge.live{background:#e6f4ea;color:var(--green)}
-.rate-badge.manual{background:var(--accent-light);color:#9a6800}
-
-/* ===== GEMINI CHAT ===== */
-.gemini-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:600;display:flex;align-items:flex-end;justify-content:flex-end;padding:80px 24px 80px 24px;pointer-events:none;opacity:0;transition:opacity .25s}
-.gemini-overlay.open{opacity:1;pointer-events:all}
-.gemini-box{width:380px;max-width:95vw;height:520px;max-height:75vh;background:white;border-radius:14px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;transform:translateY(20px) scale(.97);transition:transform .25s;overflow:hidden}
-.gemini-overlay.open .gemini-box{transform:translateY(0) scale(1)}
-.gemini-hdr{background:linear-gradient(135deg,var(--navy),var(--teal));color:white;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-.gemini-hdr-left{display:flex;align-items:center;gap:10px}
-.gemini-hdr h3{font-size:14px;font-weight:600;margin:0}
-.gemini-hdr p{font-size:10px;opacity:.7;margin:0}
-.gemini-avatar{width:32px;height:32px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.gemini-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
-.gemini-close:hover{color:white;background:rgba(255,255,255,.15)}
-.gemini-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
-.gmsg{max-width:85%;padding:9px 12px;border-radius:12px;font-size:12.5px;line-height:1.5;word-break:break-word}
-.gmsg.user{background:var(--teal);color:white;align-self:flex-end;border-bottom-right-radius:3px}
-.gmsg.bot{background:var(--gray-100);color:var(--gray-900);align-self:flex-start;border-bottom-left-radius:3px}
-.gmsg.bot.thinking{color:var(--gray-500);font-style:italic}
-.gmsg.error{background:var(--red-light);color:var(--red)}
-.gemini-setup{background:var(--accent-light);border:1px solid #f5c842;border-radius:8px;padding:12px;margin:10px;font-size:12px;color:#7a5200}
-.gemini-input-wrap{padding:12px;border-top:1px solid var(--gray-200);display:flex;gap:8px;flex-shrink:0;background:white}
-.gemini-input{flex:1;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;border:1.5px solid var(--gray-300);border-radius:8px;resize:none;height:40px;line-height:1.4;transition:border-color .15s;outline:none}
-.gemini-input:focus{border-color:var(--teal-mid);box-shadow:0 0 0 3px rgba(45,154,166,.12)}
-.gemini-send{background:var(--teal);color:white;border:none;border-radius:8px;width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
-.gemini-send:hover{background:var(--teal-mid)}
-.gemini-send:disabled{background:var(--gray-300);cursor:not-allowed}
-.gemini-chips{display:flex;flex-wrap:wrap;gap:5px;padding:0 14px 8px;}
-.gemini-chip{background:var(--teal-light);color:var(--teal);border:1px solid var(--teal-mid);border-radius:12px;padding:3px 10px;font-size:11px;cursor:pointer;transition:all .15s}
-.gemini-chip:hover{background:var(--teal);color:white}
-
-
-/* ===== SPECS POPUP ===== */
-.specs-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:700;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
-.specs-overlay.open{opacity:1;pointer-events:all}
-.specs-box{background:white;border-radius:var(--radius);box-shadow:var(--shadow-lg);width:600px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;transform:translateY(12px);transition:transform .2s;overflow:hidden}
-.specs-overlay.open .specs-box{transform:translateY(0)}
-.specs-hdr{background:var(--navy);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-.specs-hdr h3{font-size:14px;font-weight:600;margin:0}
-.specs-body{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
-.specs-textarea{font-family:'DM Mono',monospace;font-size:12px;padding:10px 12px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);resize:vertical;min-height:280px;line-height:1.6;color:var(--gray-900);transition:border-color .15s;width:100%;}
-.specs-textarea:focus{outline:none;border-color:var(--teal-mid);box-shadow:0 0 0 3px rgba(45,154,166,.12)}
-.specs-preview{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:12px;font-size:11px;line-height:1.7;color:var(--gray-700);max-height:160px;overflow-y:auto;white-space:pre-wrap;font-family:'DM Mono',monospace;}
-
 </style>
 </head>
 <body>
@@ -1171,38 +1103,9 @@ ${v('cl_notas')?`<p style="font-size:9pt;font-style:italic;color:#555;margin-bot
   </tr>
 </table>
 
-<!-- ===== SPECS POPUP ===== -->
-<div class="specs-overlay" id="specs-modal" onclick="if(event.target===this)closeSpecsPopup()">
-  <div class="specs-box">
-    <div class="specs-hdr">
-      <h3>📋 Especificaciones técnicas</h3>
-      <button onclick="closeSpecsPopup()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;">✕</button>
-    </div>
-    <div class="specs-body">
-      <div class="field">
-        <label>Nombre / descripción corta del producto</label>
-        <input type="text" id="specs-name" placeholder="Ej. Transmisor de nivel por radar" style="font-size:13px;">
-      </div>
-      <div class="field">
-        <label>Especificaciones técnicas <span style="font-weight:400;color:var(--gray-500);">— una característica por línea</span></label>
-        <textarea class="specs-textarea" id="specs-content"
-          placeholder="Número del artículo: 575839&#10;Tipo de sensor: Radar&#10;Precisión de medición: 2 mm&#10;Rango: 0 - 20 m&#10;Tensión: 12-35 V DC&#10;Protocolo: HART + Bluetooth&#10;Grado de protección: IP66/67"
-          oninput="updateSpecsPreview()"></textarea>
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Vista previa en documento</div>
-        <div class="specs-preview" id="specs-preview">—</div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--gray-200);">
-        <button class="btn btn-secondary" onclick="closeSpecsPopup()">Cancelar</button>
-        <button class="btn btn-danger btn-sm" onclick="clearSpecs()" style="margin-right:auto;">🗑 Limpiar</button>
-        <button class="btn btn-primary" onclick="saveSpecs()">✓ Guardar especificaciones</button>
-      </div>
-    </div>
-  </div>
-</div>
 
-</body></html>`;
+
+`;
 
 
   const blob=new Blob(['\ufeff'+html],{type:'application/msword'});
@@ -1630,44 +1533,13 @@ function generateExcelBase64() {
 
 
 
-// ===== SPECS POPUP =====
-let currentSpecsItemId = null;
-
-function openSpecsPopup(itemId) {
-  currentSpecsItemId = itemId;
-  const item = items.find(i=>i.id===itemId);
-  if(!item) return;
-  document.getElementById('specs-name').value = item.desc || '';
-  document.getElementById('specs-content').value = item.specs || '';
-  updateSpecsPreview();
-  document.getElementById('specs-modal').classList.add('open');
-  document.getElementById('specs-name').focus();
-}
-
-function closeSpecsPopup() {
-  document.getElementById('specs-modal').classList.remove('open');
-  currentSpecsItemId = null;
-}
-
-function clearSpecs() {
-  document.getElementById('specs-content').value = '';
-  updateSpecsPreview();
-}
-
-function updateSpecsPreview() {
-  const specs = document.getElementById('specs-content').value.trim();
-  const preview = document.getElementById('specs-preview');
-  preview.textContent = specs || '(sin especificaciones)';
-}
-
-function saveSpecs() {
-  if(!currentSpecsItemId) return;
-  const item = items.find(i=>i.id===currentSpecsItemId);
-  if(!item) return;
-  item.desc = document.getElementById('specs-name').value.trim();
-  item.specs = document.getElementById('specs-content').value.trim();
-  closeSpecsPopup();
-  renderItems();
+// ===== SPECS INLINE TOGGLE =====
+function toggleSpecs(itemId) {
+  const ta = document.getElementById('specs-ta-' + itemId);
+  if (!ta) return;
+  const isVisible = ta.style.display !== 'none';
+  ta.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) ta.focus();
 }
 
 // Helper: format item description for Word/PDF
@@ -1958,36 +1830,8 @@ ${buildQuoteContext()}`;
 </div>
 
 
-<!-- ===== SPECS POPUP ===== -->
-<div class="specs-overlay" id="specs-modal" onclick="if(event.target===this)closeSpecsPopup()">
-  <div class="specs-box">
-    <div class="specs-hdr">
-      <h3>📋 Especificaciones técnicas</h3>
-      <button onclick="closeSpecsPopup()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;">✕</button>
-    </div>
-    <div class="specs-body">
-      <div class="field">
-        <label>Nombre / descripción corta del producto</label>
-        <input type="text" id="specs-name" placeholder="Ej. Transmisor de nivel por radar" style="font-size:13px;">
-      </div>
-      <div class="field">
-        <label>Especificaciones técnicas <span style="font-weight:400;color:var(--gray-500);">— una característica por línea</span></label>
-        <textarea class="specs-textarea" id="specs-content"
-          placeholder="Número del artículo: 575839&#10;Tipo de sensor: Radar&#10;Precisión de medición: 2 mm&#10;Rango: 0 - 20 m&#10;Tensión: 12-35 V DC&#10;Protocolo: HART + Bluetooth&#10;Grado de protección: IP66/67"
-          oninput="updateSpecsPreview()"></textarea>
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Vista previa en documento</div>
-        <div class="specs-preview" id="specs-preview">—</div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--gray-200);">
-        <button class="btn btn-secondary" onclick="closeSpecsPopup()">Cancelar</button>
-        <button class="btn btn-danger btn-sm" onclick="clearSpecs()" style="margin-right:auto;">🗑 Limpiar</button>
-        <button class="btn btn-primary" onclick="saveSpecs()">✓ Guardar especificaciones</button>
-      </div>
-    </div>
-  </div>
-</div>
+
+
 
 </body>
 </html>
