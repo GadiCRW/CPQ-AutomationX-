@@ -1428,44 +1428,61 @@ function generatePDFBase64() {
     const specs = item.specs||'';
     const specLines = specs ? specs.split('\n').filter(l=>l.trim()) : [];
 
-    // Calculate row height based on name + specs
-    const nameLines = doc.splitTextToSize(desc, 98);
-    const totalLines = nameLines.length + specLines.length;
-    const rh = Math.max(8, nameLines.length*5 + specLines.length*4.2 + (specLines.length>0?3:0));
+    // Column layout: qty=20mm, desc starts at M+22, prices use last 36mm
+    const descColW = CW - 22 - 36; // available width for description text
+    const qtyX = M + 2;
+    const descX = M + 22;
+    const priceX = M + CW - 34;
+    const totalX = M + CW - 2;
 
+    // Calculate row height
+    setFont('bold', 8.5);
+    const nameLines = doc.splitTextToSize(desc, descColW);
+    setFont('normal', 7);
+    let specWrapped = [];
+    specLines.forEach(line => {
+      const wrapped = doc.splitTextToSize('• ' + line.trim(), descColW);
+      specWrapped = specWrapped.concat(wrapped);
+    });
+    const rh = Math.max(8,
+      nameLines.length * 5 +
+      (specWrapped.length > 0 ? specWrapped.length * 4 + 3 : 0) + 3
+    );
+
+    // Row background and border
     setFill(i%2===0?[248,249,250]:WHITE);
     doc.rect(M, y, CW, rh, 'F');
     setDraw([222,226,230]); doc.rect(M, y, CW, rh, 'S');
 
     // Quantity
-    setFont('normal',8); setColor([33,37,41]);
-    doc.text(fmtNum(item.qty)+uLabel, M+2, y+6);
+    setFont('normal', 8); setColor([33,37,41]);
+    doc.text(fmtNum(item.qty)+uLabel, qtyX, y+6);
 
     // Product name (bold)
-    setFont('bold',8.5); setColor([33,37,41]);
-    doc.text(nameLines, M+22, y+5.5);
+    setFont('bold', 8.5); setColor([33,37,41]);
+    doc.text(nameLines, descX, y+5.5);
 
-    // Specs lines (smaller, gray)
-    if(specLines.length>0) {
-      setFont('normal',7); setColor([90,100,110]);
-      let sy = y + nameLines.length*5 + 3;
-      specLines.forEach(line => {
-        const wrapped = doc.splitTextToSize(line.trim(), 98);
-        doc.text(wrapped, M+22, sy);
-        sy += wrapped.length*4;
+    // Specs (smaller, gray, with bullet)
+    if(specWrapped.length > 0) {
+      setFont('normal', 7); setColor([80,90,105]);
+      let sy = y + nameLines.length * 5 + 4;
+      specWrapped.forEach(line => {
+        doc.text(line, descX, sy);
+        sy += 4;
+        if(sy > y + rh - 1) return; // clip if overflows
       });
     }
 
-    // Prices aligned to middle of row
+    // Prices (vertically centered)
     const midY = y + rh/2 + 1.5;
-    setFont('normal',8); setColor(TEAL);
-    doc.text(cur+' '+fmtNum(unitVenta,2), M+CW-32, midY, {align:'right'});
-    setFont('bold',8); setColor([33,37,41]);
-    doc.text(cur+' '+fmtNum(venta,2), M+CW-2, midY, {align:'right'});
+    setFont('normal', 8); setColor(TEAL);
+    doc.text(cur+' '+fmtNum(unitVenta,2), priceX, midY, {align:'right'});
+    setFont('bold', 8); setColor([26,39,68]);
+    doc.text(cur+' '+fmtNum(venta,2), totalX, midY, {align:'right'});
     y += rh;
 
-    // page break check
-    if(y > 250) { doc.addPage(); y = M; }
+    // page break
+    if(y > 252) { doc.addPage(); y = M; }
   });
   y += 6;
 
