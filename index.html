@@ -931,7 +931,6 @@ function renderPreview() {
           <tr><td style="padding:3px 8px 3px 0;font-weight:600;">Garantía:</td><td>${escHtml(v('cl_garantia'))}</td></tr>
         </table>
         ${v('cl_notas')?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-200);font-size:11px;color:var(--gray-600);">${escHtml(v('cl_notas'))}</div>`:''}
-        ${v('cl_cierre')?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray-200);font-size:11px;font-style:italic;color:var(--gray-600);">${escHtml(v('cl_cierre'))}</div>`:''}
         <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--gray-200);font-size:11px;">
           <strong>Cuenta Bancaria Banco Nacional — Dólares:</strong><br>
           IBAN: CR69015100220025236751
@@ -942,7 +941,8 @@ function renderPreview() {
         <div class="preview-total-row"><span>I.V.A (${(iva*100).toFixed(0)}%)</span><span class="mono">${fmtCur(ivaAmt)}</span></div>
         <div class="preview-total-row final"><span>Total</span><span class="mono">${fmtCur(total)}</span></div>
       </div>
-    </div>`;
+    </div>
+    ${v('cl_cierre')?`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--gray-200);font-size:11px;font-style:italic;color:var(--gray-600);text-align:center;">${escHtml(v('cl_cierre'))}</div>`:``}`;
 }
 
 // ===== EXCEL =====
@@ -1275,11 +1275,6 @@ table{border-collapse:collapse}
 
 ${v('cl_notas')?`<p style="font-size:9pt;font-style:italic;color:#555;margin-bottom:8pt;padding:7pt 10pt;background:#F8F9FA;border-left:3pt solid ${TEAL};">${escHtml(v('cl_notas'))}</p>`:''}
 
-<!-- CLOSING MESSAGE -->
-<p style="font-size:9pt;font-style:italic;color:#444;margin-bottom:10pt;">
-  ${escHtml(v('cl_cierre')||'Agradeciendo la atención prestada a la presente me suscribo quedando a las órdenes.')}
-</p>
-
 <!-- BANK INFO -->
 <p style="font-size:8.5pt;margin-bottom:4pt;"><b>Cuenta Bancaria de Banco Nacional — Dólares:</b></p>
 <p style="font-size:8.5pt;margin-bottom:12pt;font-family:Courier New;">IBAN: CR69015100220025236751</p>
@@ -1316,6 +1311,12 @@ ${v('cl_notas')?`<p style="font-size:9pt;font-style:italic;color:#555;margin-bot
   </tr>
 </table>
 
+${v('cl_cierre')?`
+<!-- CLOSING MESSAGE AT BOTTOM -->
+<p style="font-size:9pt;font-style:italic;color:#6C757D;margin-top:16pt;padding-top:10pt;border-top:1pt solid #DEE2E6;text-align:center;">
+  ${escHtml(v('cl_cierre'))}
+</p>`:``}
+
 </body></html>`;
 
   const blob=new Blob(['﻿'+html],{type:'application/msword'});
@@ -1330,7 +1331,11 @@ ${v('cl_notas')?`<p style="font-size:9pt;font-style:italic;color:#555;margin-bot
 }
 // ===== PDF =====
 function generatePDF() {
+  const qtNum = v('cl_qt_num') || 'Cotizacion';
+  const origTitle = document.title;
+  document.title = qtNum;
   window.print();
+  setTimeout(() => { document.title = origTitle; }, 1000);
 }
 
 // ===== UTILS =====
@@ -1669,6 +1674,20 @@ function generatePDFBase64() {
   doc.text('Total', totX+2, ty+22.5);
   setColor([232,160,32]);
   doc.text(cur+' '+fmtNum(total,2), totX+totW-2, ty+22.5, {align:'right'});
+
+  // ── CLOSING MESSAGE (at very bottom) ──
+  const cierreText2 = v('cl_cierre') || '';
+  if(cierreText2) {
+    y = Math.max(y, startY + 42) + 8;
+    if(y > 265) { doc.addPage(); y = M; }
+    setDraw([222,226,230]); doc.setLineWidth(0.3);
+    doc.line(M, y, M+CW, y);
+    doc.setLineWidth(0.2);
+    y += 5;
+    setFont('italic',8); setColor(GRAY);
+    const cierreLines2 = doc.splitTextToSize(cierreText2, CW);
+    doc.text(cierreLines2, W/2, y, {align:'center'});
+  }
 
   return doc.output('datauristring').split(',')[1];
 }
