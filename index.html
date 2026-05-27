@@ -190,6 +190,7 @@ small{font-size:11px;color:var(--gray-500)}
     <button class="step-btn" onclick="goStep(3)" id="stepbtn-3"><span class="step-num">3</span> Nacionalización</button>
     <button class="step-btn" onclick="goStep(4)" id="stepbtn-4"><span class="step-num">4</span> Resumen</button>
     <button class="step-btn" onclick="goStep(5)" id="stepbtn-5"><span class="step-num">5</span> Generar</button>
+    <button class="step-btn" onclick="goStep(6)" id="stepbtn-6" style="border-left:1px solid var(--gray-200);margin-left:4px;"><span class="step-num" style="background:var(--accent);color:white;">📋</span> Historial</button>
   </div>
 
   <!-- STEP 1 -->
@@ -354,11 +355,66 @@ small{font-size:11px;color:var(--gray-500)}
         </div>
         <div class="divider"></div>
         <p style="font-size:12px;color:var(--gray-500);">📄 El PDF abre el diálogo de impresión del navegador — seleccione "Guardar como PDF". Los archivos generados se adjuntan directamente en Monday.</p>
+        <div class="divider"></div>
+        <div style="background:var(--accent-light);border:1px solid #f5c842;border-radius:8px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#7a5200;margin-bottom:4px;">✅ ¿Cotización lista para enviar?</div>
+            <p style="font-size:12px;color:#9a6800;">Al finalizar, la cotización se guarda en el historial compartido y el sistema se reinicia para una nueva cotización. Los archivos generados quedan disponibles para regenerar en cualquier momento.</p>
+          </div>
+          <button class="btn btn-lg" onclick="finalizarCotizacion()" 
+            style="background:var(--accent);color:white;flex-shrink:0;font-size:14px;font-weight:600;padding:14px 28px;box-shadow:0 4px 12px rgba(232,160,32,.3);">
+            ✅ Finalizar cotización
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
+  <!-- STEP 6: HISTORIAL -->
+  <div class="section" id="step-6">
+    <div class="card">
+      <div class="card-header" style="justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="card-icon">📋</div>
+          <div class="card-title">Historial de cotizaciones</div>
+        </div>
+        <div class="flex gap-8 align-center">
+          <input type="text" id="hist-search" placeholder="Buscar por #QT, cliente o vendedor..." 
+            oninput="filterHistory()" 
+            style="font-size:13px;padding:7px 12px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);width:280px;">
+          <button class="btn btn-secondary btn-sm" onclick="loadHistory()">↻ Actualizar</button>
+        </div>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div id="hist-loading" style="padding:32px;text-align:center;color:var(--gray-500);display:none;">
+          <div style="font-size:24px;margin-bottom:8px;">⏳</div>
+          <p>Cargando historial...</p>
+        </div>
+        <div id="hist-error" style="padding:20px;display:none;background:var(--red-light);color:var(--red);font-size:13px;border-radius:8px;margin:16px;"></div>
+        <table class="rubros-table" id="hist-table" style="display:none;">
+          <thead>
+            <tr>
+              <th style="width:160px;">N° Cotización</th>
+              <th style="width:100px;">Fecha</th>
+              <th>Cliente</th>
+              <th style="width:120px;">Elaborado por</th>
+              <th style="width:80px;">Moneda</th>
+              <th style="width:110px;text-align:right;">Total</th>
+              <th style="width:90px;text-align:center;">Estado</th>
+              <th style="width:100px;text-align:center;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+        <div id="hist-empty" style="padding:40px;text-align:center;color:var(--gray-500);display:none;">
+          <div style="font-size:32px;margin-bottom:10px;">📭</div>
+          <p style="font-size:14px;">No hay cotizaciones guardadas aún.</p>
+          <p style="font-size:12px;">Finalice una cotización desde el Paso 5 para verla aquí.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 <div class="action-bar">
   <div class="action-bar-info" id="action-info">Paso 1 de 5 — Datos del cliente</div>
   <div class="flex gap-8">
@@ -398,6 +454,8 @@ window.onload = () => {
 };
 
 function autoQtNum() {
+  // Don't auto-generate if a quotation is loaded from history
+  if (loadedQtData) return;
   const d = new Date();
   const dd = String(d.getDate()).padStart(2,'0');
   const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -425,14 +483,20 @@ function renderStep() {
     if(i+1===currentStep) b.classList.add('active');
     else if(i+1<currentStep) b.classList.add('done');
   });
-  const infos=['Paso 1 de 5 — Datos del cliente','Paso 2 de 5 — Líneas de costo','Paso 3 de 5 — Nacionalización','Paso 4 de 5 — Resumen','Paso 5 de 5 — Generar documentos'];
-  document.getElementById('action-info').textContent = infos[currentStep-1];
-  document.getElementById('btn-prev').style.display = currentStep>1?'':'none';
+  const infos=['Paso 1 de 5 — Datos del cliente','Paso 2 de 5 — Líneas de costo','Paso 3 de 5 — Nacionalización','Paso 4 de 5 — Resumen','Paso 5 de 5 — Generar documentos','Historial de cotizaciones'];
+  document.getElementById('action-info').textContent = infos[currentStep-1]||'';
+  document.getElementById('btn-prev').style.display = (currentStep>1&&currentStep<6)?'':'none';
   document.getElementById('btn-next').style.display = currentStep<5?'':'none';
+  document.querySelectorAll('.step-btn').forEach((b,i)=>{
+    b.classList.remove('active','done');
+    if(i+1===currentStep) b.classList.add('active');
+    else if(i+1<currentStep&&currentStep<6) b.classList.add('done');
+  });
   if(currentStep===2) { calcAllLotes(); renderItems(); }
   if(currentStep===3) renderLotes();
   if(currentStep===4) renderSummary();
   if(currentStep===5) renderPreview();
+  if(currentStep===6) loadHistory();
 }
 
 function validateStep(n) {
@@ -1704,6 +1768,308 @@ function formatItemDescPlain(item) {
   if(!specs) return name;
   return name + '\n' + specs;
 }
+
+
+// ===== HISTORY SYSTEM =====
+const HISTORY_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwpUghE_-9FYkWtOJ9xtqBL_EPis3X8Jt0jcuInTUoXrU2VPjyuiuDDhIhpJ1znsHjbCg/exec';
+let allQuotations = [];
+let loadedQtData = null; // currently loaded quotation from history
+
+// ── Finalizar cotización ──
+async function finalizarCotizacion() {
+  if (!confirm('¿Finalizar esta cotización y guardarla en el historial?\n\nEl sistema se reiniciará para una nueva cotización.')) return;
+
+  const btn = document.querySelector('[onclick="finalizarCotizacion()"]');
+  const origText = btn.innerHTML;
+  btn.innerHTML = '⏳ Guardando...';
+  btn.disabled = true;
+
+  try {
+    const {totalVenta, ivaAmt, total} = calcTotals();
+    const qtNum = v('cl_qt_num') || 'QT-SIN-NUMERO';
+
+    // Build full state snapshot
+    const snapshot = {
+      // Client data
+      cl_empresa: v('cl_empresa'), cl_contacto: v('cl_contacto'),
+      cl_email: v('cl_email'), cl_telefono: v('cl_telefono'),
+      cl_direccion: v('cl_direccion'), cl_fecha: v('cl_fecha'),
+      cl_qt_num: qtNum, cl_moneda: v('cl_moneda'), cl_pago: v('cl_pago'),
+      cl_entrega: v('cl_entrega'), cl_plazo: v('cl_plazo'),
+      cl_vigencia: v('cl_vigencia'), cl_garantia: v('cl_garantia'),
+      cl_elaborado: v('cl_elaborado'), cl_iva: v('cl_iva'),
+      cl_notas: v('cl_notas'), cl_cierre: v('cl_cierre'),
+      // Margins
+      mg_ganancia: v('mg_ganancia'), mg_seguridad: v('mg_seguridad'),
+      mg_descuento: v('mg_descuento'), mg_aplica: v('mg_aplica'),
+      // Items
+      items: items,
+      nacMap: nacMap,
+      lotes: lotes,
+      // Totals
+      totalVenta, ivaAmt, total,
+      // Meta
+      savedAt: new Date().toISOString(),
+      version: '1.1',
+    };
+
+    const payload = {
+      action: 'save',
+      qt_num: qtNum,
+      fecha: formatDate(v('cl_fecha')),
+      cliente: v('cl_empresa'),
+      contacto: v('cl_contacto'),
+      email: v('cl_email'),
+      telefono: v('cl_telefono'),
+      direccion: v('cl_direccion'),
+      moneda: v('cl_moneda'),
+      cond_pago: v('cl_pago'),
+      elaborado: v('cl_elaborado'),
+      subtotal: totalVenta.toFixed(2),
+      iva: ivaAmt.toFixed(2),
+      total: total.toFixed(2),
+      json_data: JSON.stringify(snapshot),
+    };
+
+    const res = await fetch(HISTORY_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      showToast('✓ Cotización guardada en historial', 'success');
+      setTimeout(() => resetSystem(), 1200);
+    } else {
+      throw new Error(result.error || 'Error al guardar');
+    }
+  } catch(e) {
+    btn.innerHTML = origText;
+    btn.disabled = false;
+    showToast('Error al guardar: ' + e.message, 'error');
+  }
+}
+
+// ── Reiniciar sistema ──
+function resetSystem() {
+  // Reset all state
+  items = [];
+  nacMap = {};
+  lotes = [];
+  loteCounter = 0;
+  itemCounter = 0;
+  loadedQtData = null;
+
+  // Reset all form fields
+  document.getElementById('cl_empresa').value = '';
+  document.getElementById('cl_contacto').value = '';
+  document.getElementById('cl_email').value = '';
+  document.getElementById('cl_telefono').value = '';
+  document.getElementById('cl_direccion').value = '';
+  document.getElementById('cl_fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('cl_moneda').value = 'USD';
+  document.getElementById('cl_pago').value = 'Crédito 60 días';
+  document.getElementById('cl_entrega').value = '';
+  document.getElementById('cl_plazo').value = '';
+  document.getElementById('cl_vigencia').value = '';
+  document.getElementById('cl_garantia').value = '';
+  document.getElementById('cl_elaborado').value = '';
+  document.getElementById('cl_iva').value = '13';
+  document.getElementById('cl_notas').value = '';
+  if(document.getElementById('cl_cierre')) document.getElementById('cl_cierre').value = '';
+  document.getElementById('mg_ganancia').value = '25';
+  document.getElementById('mg_seguridad').value = '5';
+  document.getElementById('mg_descuento').value = '0';
+
+  // Re-generate QT number
+  autoQtNum();
+
+  // Add default items
+  addItem({ cat:'automatismos', desc:'', qty:1, tipo_unidad:'unidad', costo:0 });
+  addItem({ cat:'ingenieria', desc:'Ingeniería y supervisión', qty:8, tipo_unidad:'hora', costo:0 });
+  addItem({ cat:'puestaenmarcha', desc:'Puesta en marcha', qty:1, tipo_unidad:'dia', costo:0 });
+
+  // Go to step 1
+  currentStep = 1;
+  renderStep();
+  showToast('Sistema reiniciado ✓', 'success');
+}
+
+// ── Load history from Sheets ──
+async function loadHistory() {
+  const loading = document.getElementById('hist-loading');
+  const errDiv = document.getElementById('hist-error');
+  const table = document.getElementById('hist-table');
+  const empty = document.getElementById('hist-empty');
+
+  loading.style.display = 'block';
+  table.style.display = 'none';
+  empty.style.display = 'none';
+  errDiv.style.display = 'none';
+
+  try {
+    const res = await fetch(HISTORY_SCRIPT_URL + '?action=list&cb=' + Date.now());
+    const data = await res.json();
+
+    loading.style.display = 'none';
+    if (!data.success) throw new Error(data.error || 'Error al cargar');
+
+    allQuotations = data.quotations || [];
+    renderHistory(allQuotations);
+  } catch(e) {
+    loading.style.display = 'none';
+    errDiv.textContent = '⚠ Error al conectar con el historial: ' + e.message;
+    errDiv.style.display = 'block';
+  }
+}
+
+// ── Render history table ──
+function renderHistory(list) {
+  const table = document.getElementById('hist-table');
+  const empty = document.getElementById('hist-empty');
+  const tbody = document.getElementById('hist-body');
+
+  if (list.length === 0) {
+    empty.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+
+  table.style.display = 'table';
+  empty.style.display = 'none';
+  tbody.innerHTML = '';
+
+  list.forEach(qt => {
+    const estadoColor = {
+      'Guardada': 'background:#e8f4f5;color:#1a6b72;',
+      'Enviada':  'background:#e6f4ea;color:#1a7a4a;',
+      'Cerrada':  'background:#f1f3f5;color:#495057;',
+      'Cancelada':'background:#fdecea;color:#c0392b;',
+    }[qt.estado] || '';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="mono" style="font-size:12px;font-weight:600;">${escHtml(qt.qt_num)}</span></td>
+      <td style="font-size:12px;">${escHtml(String(qt.fecha))}</td>
+      <td style="font-size:12px;font-weight:500;">${escHtml(qt.cliente)}</td>
+      <td style="font-size:12px;">${escHtml(qt.elaborado)}</td>
+      <td style="font-size:12px;text-align:center;">${escHtml(qt.moneda)}</td>
+      <td class="td-total" style="font-size:12px;">${fmtCur(parseFloat(qt.total)||0)}</td>
+      <td style="text-align:center;">
+        <span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:12px;${estadoColor}">${escHtml(qt.estado)}</span>
+      </td>
+      <td style="text-align:center;">
+        <button class="btn btn-primary btn-sm" onclick="loadQuotation('${escHtml(qt.qt_num)}')" style="font-size:11px;padding:4px 10px;">
+          📂 Abrir
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Filter history ──
+function filterHistory() {
+  const q = document.getElementById('hist-search').value.toLowerCase();
+  if (!q) { renderHistory(allQuotations); return; }
+  const filtered = allQuotations.filter(qt =>
+    qt.qt_num?.toLowerCase().includes(q) ||
+    qt.cliente?.toLowerCase().includes(q) ||
+    qt.elaborado?.toLowerCase().includes(q)
+  );
+  renderHistory(filtered);
+}
+
+// ── Load a specific quotation from history ──
+async function loadQuotation(qt_num) {
+  const btn = event.target;
+  btn.textContent = '⏳';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(HISTORY_SCRIPT_URL + '?action=get&qt=' + encodeURIComponent(qt_num) + '&cb=' + Date.now());
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error);
+
+    const snapshot = JSON.parse(data.json_data);
+    restoreSnapshot(snapshot);
+    showToast('Cotización ' + qt_num + ' cargada ✓', 'success');
+  } catch(e) {
+    showToast('Error al cargar: ' + e.message, 'error');
+  } finally {
+    btn.textContent = '📂 Abrir';
+    btn.disabled = false;
+  }
+}
+
+// ── Restore full snapshot (IMPORTANT: date and QT# are NOT auto-generated) ──
+function restoreSnapshot(snapshot) {
+  // Restore client fields
+  const fields = ['cl_empresa','cl_contacto','cl_email','cl_telefono','cl_direccion',
+    'cl_moneda','cl_pago','cl_entrega','cl_plazo','cl_vigencia',
+    'cl_garantia','cl_elaborado','cl_iva','cl_notas','cl_cierre'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if(el && snapshot[id] !== undefined) el.value = snapshot[id];
+  });
+
+  // ⚠ INTEGRIDAD: restore QT number and date EXACTLY as saved — no auto-generation
+  const qtEl = document.getElementById('cl_qt_num');
+  const fechaEl = document.getElementById('cl_fecha');
+  if(qtEl) qtEl.value = snapshot.cl_qt_num || '';
+  if(fechaEl) fechaEl.value = snapshot.cl_fecha || '';
+
+  // Restore margins
+  if(snapshot.mg_ganancia) document.getElementById('mg_ganancia').value = snapshot.mg_ganancia;
+  if(snapshot.mg_seguridad) document.getElementById('mg_seguridad').value = snapshot.mg_seguridad;
+  if(snapshot.mg_descuento) document.getElementById('mg_descuento').value = snapshot.mg_descuento;
+  if(snapshot.mg_aplica) document.getElementById('mg_aplica').value = snapshot.mg_aplica;
+
+  // Restore items, nacMap, lotes
+  items = snapshot.items || [];
+  nacMap = snapshot.nacMap || {};
+  lotes = snapshot.lotes || [];
+  loteCounter = lotes.length;
+  itemCounter = items.length > 0 ? Math.max(...items.map(i=>i.id||0)) : 0;
+
+  // Flag as loaded from history (prevents auto QT generation)
+  loadedQtData = snapshot;
+
+  // Navigate to step 1 and show banner
+  currentStep = 1;
+  renderStep();
+  renderItems();
+
+  // Show read-only banner
+  showHistoryBanner(snapshot.cl_qt_num);
+}
+
+// ── Show banner indicating this is a loaded quotation ──
+function showHistoryBanner(qt_num) {
+  let banner = document.getElementById('history-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'history-banner';
+    banner.style.cssText = 'background:var(--accent-light);border:1px solid #f5c842;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#7a5200;';
+    document.querySelector('.container').insertBefore(banner, document.querySelector('.steps-nav').nextSibling);
+  }
+  banner.innerHTML = `
+    <div>
+      <strong>📂 Cotización cargada del historial: ${escHtml(qt_num)}</strong><br>
+      <span>El N° de cotización y la fecha no se modifican automáticamente para mantener la integridad. Edite manualmente si es necesario.</span>
+    </div>
+    <button onclick="this.parentElement.remove();loadedQtData=null;autoQtNum();" 
+      style="background:none;border:1px solid #f5c842;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px;color:#7a5200;flex-shrink:0;margin-left:16px;">
+      ✕ Nueva cotización
+    </button>
+  `;
+}
+
+// ── Override autoQtNum to respect loaded quotations ──
+const _originalAutoQtNum = autoQtNum;
+// Patch: don't auto-generate if a quotation is loaded from history
+const _autoQtNumOrig = window.autoQtNum;
 
 // ===== GEMINI ASSISTANT =====
 let geminiHistory = [];
