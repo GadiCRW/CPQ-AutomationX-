@@ -1184,275 +1184,246 @@ async function generateWord() {
   const iva = parseFloat(v('cl_iva')||13)/100;
   const {totalVenta, ivaAmt, total} = calcTotals();
 
-  // ── Color helpers ──
-  const NAVY = '1A2744';
-  const TEAL = '1A6B72';
-  const GRAY = '6C757D';
-  const WHITE = 'FFFFFF';
-  const LTGRAY = 'F8F9FA';
-  const BORDER = 'CED4DA';
+  const NAVY='1A2744', TEAL='1A6B72', GRAY='6C757D', WHITE='FFFFFF',
+        LTGRAY='F8F9FA', BORDER='DEE2E6', ACCENT='E8A020';
 
-  // ── XML helpers ──
-  const xml = (tag, attrs={}, ...children) => {
-    const attrStr = Object.entries(attrs).map(([k,v2])=>`${k}="${v2}"`).join(' ');
-    const inner = children.join('');
-    return inner ? `<${tag}${attrStr?' '+attrStr:''}>${inner}</${tag}>` : `<${tag}${attrStr?' '+attrStr:''}/>`;
-  };
-  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // ── Run (text with formatting) ──
-  const run = (text, opts={}) => {
-    const rpr = [
-      opts.bold ? '<w:b/>' : '',
-      opts.italic ? '<w:i/>' : '',
-      opts.size ? `<w:sz w:val="${opts.size*2}"/><w:szCs w:val="${opts.size*2}"/>` : '',
-      opts.color ? `<w:color w:val="${opts.color}"/>` : '',
-      opts.font ? `<w:rFonts w:ascii="${opts.font}" w:hAnsi="${opts.font}"/>` : '',
-    ].join('');
-    return `<w:r>${rpr?`<w:rPr>${rpr}</w:rPr>`:''}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
+  // ── Run properties ──
+  const rPr = ({bold,italic,sz,color,font}={}) => {
+    let s = '';
+    if(font) s += `<w:rFonts w:ascii="${font}" w:hAnsi="${font}"/>`;
+    if(bold) s += '<w:b/><w:bCs/>';
+    if(italic) s += '<w:i/><w:iCs/>';
+    if(color) s += `<w:color w:val="${color}"/>`;
+    if(sz) s += `<w:sz w:val="${sz*2}"/><w:szCs w:val="${sz*2}"/>`;
+    return s ? `<w:rPr>${s}</w:rPr>` : '';
   };
+
+  // ── Single run ──
+  const run = (text, opts={}) =>
+    `<w:r>${rPr(opts)}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
 
   // ── Paragraph ──
-  const para = (runs, opts={}) => {
-    const ppr = [
-      opts.align ? `<w:jc w:val="${opts.align}"/>` : '',
-      opts.space ? `<w:spacing w:after="${opts.space}" w:before="${opts.space||0}"/>` : '<w:spacing w:after="60" w:before="0"/>',
-    ].join('');
-    const runsStr = Array.isArray(runs) ? runs.join('') : runs;
-    return `<w:p>${ppr?`<w:pPr>${ppr}</w:pPr>`:''  }${runsStr}</w:p>`;
+  const p = (content, {align,before,after,border}={}) => {
+    let ppr = '';
+    if(align) ppr += `<w:jc w:val="${align}"/>`;
+    const sp_b = before ?? 0;
+    const sp_a = after ?? 0;
+    ppr += `<w:spacing w:before="${sp_b}" w:after="${sp_a}"/>`;
+    if(border) ppr += `<w:pBdr><w:bottom w:val="single" w:sz="12" w:space="1" w:color="${NAVY}"/></w:pBdr>`;
+    return `<w:p><w:pPr>${ppr}</w:pPr>${Array.isArray(content)?content.join(''):content}</w:p>`;
   };
 
   // ── Table cell ──
-  const tc = (content, opts={}) => {
-    const w = opts.w ? `<w:tcW w:w="${opts.w}" w:type="pct"/>` : '';
-    const shd = opts.bg ? `<w:shd w:val="clear" w:color="auto" w:fill="${opts.bg}"/>` : '';
-    const borders = opts.borders !== false ? `<w:tcBorders>
+  const tc = (content, {w, bg, vAlign='center', noLeft, noRight}={}) => {
+    const wAttr = w ? `<w:tcW w:w="${w}" w:type="dxa"/>` : '';
+    const shd = bg ? `<w:shd w:val="clear" w:color="auto" w:fill="${bg}"/>` : '';
+    const mar = `<w:tcMar><w:top w:w="57" w:type="dxa"/><w:left w:w="115" w:type="dxa"/><w:bottom w:w="57" w:type="dxa"/><w:right w:w="115" w:type="dxa"/></w:tcMar>`;
+    const va = `<w:vAlign w:val="${vAlign}"/>`;
+    const bdr = noLeft||noRight ? `<w:tcBorders>
+      ${noLeft?'<w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>':''}
+      ${noRight?'<w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>':''}
+    </w:tcBorders>` : '';
+    return `<w:tc><w:tcPr>${wAttr}${shd}${bdr}${va}${mar}</w:tcPr>${Array.isArray(content)?content.join(''):content}</w:tc>`;
+  };
+
+  // ── Table row ──
+  const tr = (cells, height=400) =>
+    `<w:tr><w:trPr><w:trHeight w:val="${height}" w:hRule="atLeast"/></w:trPr>${cells.join('')}</w:tr>`;
+
+  // ── Full table ──  
+  const tbl = (rows, cols, opts={}) => {
+    const grid = cols.map(w=>`<w:gridCol w:w="${w}"/>`).join('');
+    const borders = `<w:tblBorders>
       <w:top w:val="single" w:sz="4" w:space="0" w:color="${BORDER}"/>
       <w:left w:val="single" w:sz="4" w:space="0" w:color="${BORDER}"/>
       <w:bottom w:val="single" w:sz="4" w:space="0" w:color="${BORDER}"/>
       <w:right w:val="single" w:sz="4" w:space="0" w:color="${BORDER}"/>
-    </w:tcBorders>` : '';
-    const vAlign = `<w:vAlign w:val="${opts.vAlign||'center'}"/>`;
-    const margin = `<w:tcMar><w:top w:w="60" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tcMar>`;
-    return `<w:tc><w:tcPr>${w}${borders}${shd}${vAlign}${margin}</w:tcPr>${content}</w:tc>`;
-  };
-
-  // ── Table row ──
-  const tr = (cells, opts={}) => {
-    const trpr = opts.height ? `<w:trPr><w:trHeight w:val="${opts.height}" w:hRule="atLeast"/></w:trPr>` : '<w:trPr><w:trHeight w:val="360" w:hRule="atLeast"/></w:trPr>';
-    return `<w:tr>${trpr}${cells.join('')}</w:tr>`;
-  };
-
-  // ── Table ──
-  const table = (rows, opts={}) => {
-    const tblW = `<w:tblW w:w="9360" w:type="dxa"/>`;
-    const tblBorders = `<w:tblBorders>
-      <w:top w:val="single" w:sz="4" w:color="${BORDER}"/>
-      <w:left w:val="single" w:sz="4" w:color="${BORDER}"/>
-      <w:bottom w:val="single" w:sz="4" w:color="${BORDER}"/>
-      <w:right w:val="single" w:sz="4" w:color="${BORDER}"/>
-      <w:insideH w:val="single" w:sz="4" w:color="${BORDER}"/>
-      <w:insideV w:val="single" w:sz="4" w:color="${BORDER}"/>
+      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="${BORDER}"/>
+      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="${BORDER}"/>
     </w:tblBorders>`;
-    const tblCellMar = `<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>`;
-    return `<w:tbl><w:tblPr>${tblW}${tblBorders}${tblCellMar}</w:tblPr>${rows.join('')}</w:tbl>`;
+    const totalW = cols.reduce((a,b)=>a+b,0);
+    return `<w:tbl><w:tblPr>
+      <w:tblW w:w="${totalW}" w:type="dxa"/>
+      ${borders}
+      <w:tblLayout w:type="fixed"/>
+      <w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>
+    </w:tblPr><w:tblGrid>${grid}</w:tblGrid>${rows.join('')}</w:tbl>`;
   };
 
-  // ── Label cell (navy bg) ──
-  const labelCell = (text, w) => tc(
-    para(run(text, {bold:true, size:9, color:WHITE}), {space:0}),
-    {bg:NAVY, w, borders:true}
+  // ── Label cell (navy) ──
+  const lbl = (text, w) => tc(
+    p(run(text,{bold:true,sz:9,color:WHITE,font:'Arial'}), {before:0,after:0}),
+    {w, bg:NAVY}
   );
 
   // ── Value cell ──
-  const valueCell = (text, w, bg) => tc(
-    para(run(text, {size:9}), {space:0}),
-    {bg: bg||LTGRAY, w, borders:true}
+  const val = (text, w, bg) => tc(
+    p(run(text,{sz:9,font:'Arial'}), {before:0,after:0}),
+    {w, bg:bg||LTGRAY}
   );
 
-  // ── Load logo as base64 ──
-  const logoImg = document.querySelector('.preview-qt img') ||
-                  document.querySelector('header .logo img');
-  const logoB64 = logoImg ? logoImg.src.split(',')[1] : '';
+  // ── Get logo base64 ──
+  const logoEl = document.querySelector('.preview-qt img') || document.querySelector('header .logo img');
+  const logoB64 = logoEl ? logoEl.src.split(',')[1] : '';
 
-  // ── Build document body ──
-  const bodyParts = [];
+  // ══════════════════════════════════════════════════════
+  // DOCUMENT BODY
+  // ══════════════════════════════════════════════════════
+  const body = [];
 
-  // HEADER TABLE: logo + company info LEFT, "Cotización" RIGHT
-  const headerTable = table([
-    tr([
-      tc([
-        // Logo image
-        logoB64 ? `<w:p><w:pPr><w:spacing w:after="40"/></w:pPr><w:r><w:rPr></w:rPr><w:drawing>
-          <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
-            <wp:extent cx="1800000" cy="1000000"/>
-            <wp:docPr id="1" name="Logo"/>
-            <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
-                <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-                  <pic:nvPicPr><pic:cNvPr id="1" name="Logo"/><pic:cNvPicPr/></pic:nvPicPr>
-                  <pic:blipFill>
-                    <a:blip r:embed="rId1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
-                    <a:stretch><a:fillRect/></a:stretch>
-                  </pic:blipFill>
-                  <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1800000" cy="1000000"/></a:xfrm>
-                    <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-                  </pic:spPr>
-                </pic:pic>
-              </a:graphicData>
-            </a:graphic>
-          </wp:inline>
-        </w:drawing></w:r></w:p>` : '',
-        para(run('Automation and Projects X S.A.', {bold:true, size:9, color:NAVY}), {space:0}),
-        para(run('Cédula Jurídica: 3-101-910400', {size:8, color:GRAY}), {space:0}),
-        para(run('San José, Escazú, Costa Rica', {size:8, color:GRAY}), {space:0}),
-        para(run('info@automation-x.tech', {size:8, color:TEAL}), {space:0}),
-      ].join(''), {bg:WHITE, w:5000, borders:false}),
-      tc(
-        para(run('Cotización', {bold:true, size:22, color:NAVY}), {align:'right', space:0}),
-        {bg:WHITE, w:4360, borders:false}
-      )
-    ], {height:1200}),
-  ], {});
-  bodyParts.push(headerTable);
-  bodyParts.push(para('', {space:0})); // spacer
+  // ── HEADER: Logo + company info (left) | Cotización (right) ──
+  // Using a simple 2-col table, no borders
+  const logoDrawing = logoB64 ? `<w:r><w:rPr/><w:drawing>
+    <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+               distT="0" distB="0" distL="0" distR="0">
+      <wp:extent cx="1600000" cy="700000"/>
+      <wp:effectExtent l="0" t="0" r="0" b="0"/>
+      <wp:docPr id="1" name="Logo"/>
+      <wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
+      <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+            <pic:nvPicPr><pic:cNvPr id="1" name="Logo"/><pic:cNvPicPr/></pic:nvPicPr>
+            <pic:blipFill>
+              <a:blip r:embed="rId5" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+              <a:stretch><a:fillRect/></a:stretch>
+            </pic:blipFill>
+            <pic:spPr>
+              <a:xfrm><a:off x="0" y="0"/><a:ext cx="1600000" cy="700000"/></a:xfrm>
+              <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            </pic:spPr>
+          </pic:pic>
+        </a:graphicData>
+      </a:graphic>
+    </wp:inline>
+  </w:drawing></w:r>` : '';
 
-  // DIVIDER LINE
-  bodyParts.push(`<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="12" w:space="1" w:color="${NAVY}"/></w:pBdr><w:spacing w:after="120"/></w:pPr></w:p>`);
+  const hdrTable = `<w:tbl><w:tblPr>
+    <w:tblW w:w="9360" w:type="dxa"/>
+    <w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>
+    <w:tblLayout w:type="fixed"/>
+  </w:tblPr><w:tblGrid><w:gridCol w:w="5000"/><w:gridCol w:w="4360"/></w:tblGrid>
+  <w:tr>
+    <w:tc><w:tcPr><w:tcW w:w="5000" w:type="dxa"/><w:tcBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="single" w:sz="18" w:space="0" w:color="${NAVY}"/><w:right w:val="none"/></w:tcBorders></w:tcPr>
+      <w:p><w:pPr><w:spacing w:before="0" w:after="80"/></w:pPr>${logoDrawing}</w:p>
+      ${p(run('Automation and Projects X S.A.',{bold:true,sz:9,color:NAVY,font:'Arial'}),{before:0,after:20})}
+      ${p(run('Cédula Jurídica: 3-101-910400',{sz:8,color:GRAY,font:'Arial'}),{before:0,after:0})}
+      ${p(run('San José, Escazú, Costa Rica',{sz:8,color:GRAY,font:'Arial'}),{before:0,after:0})}
+      ${p(run('info@automation-x.tech',{sz:8,color:TEAL,font:'Arial'}),{before:0,after:120})}
+    </w:tc>
+    <w:tc><w:tcPr><w:tcW w:w="4360" w:type="dxa"/><w:tcBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="single" w:sz="18" w:space="0" w:color="${NAVY}"/><w:right w:val="none"/></w:tcBorders><w:vAlign w:val="top"/></w:tcPr>
+      ${p(run('Cotización',{bold:true,sz:22,color:NAVY,font:'Arial'}),{align:'right',before:0,after:0})}
+    </w:tc>
+  </w:tr></w:tbl>`;
+  body.push(hdrTable);
+  body.push(p('',{before:120,after:120}));
 
-  // CLIENT TABLE
-  const clientTable = table([
-    tr([
-      labelCell('Cliente:', 1680), valueCell(v('cl_empresa'), 3000),
-      labelCell('N° cotización:', 1680), valueCell(v('cl_qt_num'), 3000, WHITE),
-    ]),
-    tr([
-      labelCell('Contacto:', 1680), valueCell(v('cl_contacto'), 3000, WHITE),
-      labelCell('Fecha:', 1680), valueCell(formatDate(v('cl_fecha')), 3000),
-    ]),
-    tr([
-      labelCell('Teléfono:', 1680), valueCell(v('cl_telefono'), 3000),
-      labelCell('Cond. de pago:', 1680), valueCell(v('cl_pago'), 3000, WHITE),
-    ]),
-    tr([
-      labelCell('e-mail:', 1680), valueCell(v('cl_email'), 3000, WHITE),
-      labelCell('Moneda:', 1680), valueCell(cur, 3000),
-    ]),
-    tr([
-      labelCell('Dirección:', 1680),
-      tc(para(run(v('cl_direccion'), {size:9}), {space:0}), {bg:WHITE, w:7680, borders:true}),
-    ]),
-  ]);
-  bodyParts.push(clientTable);
-  bodyParts.push(para('', {space:0}));
+  // ── CLIENT TABLE ──
+  body.push(tbl([
+    tr([lbl('Cliente:',1800), val(v('cl_empresa'),3060), lbl('N° cotización:',1800), val(v('cl_qt_num'),2700,WHITE)]),
+    tr([lbl('Contacto:',1800), val(v('cl_contacto'),3060,WHITE), lbl('Fecha:',1800), val(formatDate(v('cl_fecha')),2700)]),
+    tr([lbl('Teléfono:',1800), val(v('cl_telefono'),3060), lbl('Cond. de pago:',1800), val(v('cl_pago'),2700,WHITE)]),
+    tr([lbl('e-mail:',1800), val(v('cl_email'),3060,WHITE), lbl('Moneda:',1800), val(cur,2700)]),
+    tr([lbl('Dirección:',1800), tc(p(run(v('cl_direccion'),{sz:9,font:'Arial'}),{before:0,after:0}),{w:7560,bg:WHITE})]),
+  ],[1800,3060,1800,2700]));
 
-  // INTRO PARAGRAPH
-  bodyParts.push(para(run('Automation and Projects X S.A agradece la confianza y tiene el agrado de presentar la siguiente oferta:', {italic:true, size:9, color:GRAY}), {space:60}));
+  body.push(p('',{before:80,after:0}));
+  body.push(p(run('Automation and Projects X S.A agradece la confianza y tiene el agrado de presentar la siguiente oferta:',{italic:true,sz:9,color:GRAY,font:'Arial'}),{before:0,after:120}));
 
-  // ITEMS TABLE
-  const itemHeaderRow = tr([
-    tc(para(run('UNIDADES', {bold:true, size:8, color:WHITE}), {align:'center', space:0}), {bg:NAVY, w:900, borders:true}),
-    tc(para(run('DESCRIPCIÓN', {bold:true, size:8, color:WHITE}), {space:0}), {bg:NAVY, w:5760, borders:true}),
-    tc(para(run('P. UNITARIO', {bold:true, size:8, color:WHITE}), {align:'right', space:0}), {bg:NAVY, w:1350, borders:true}),
-    tc(para(run('TOTAL', {bold:true, size:8, color:WHITE}), {align:'right', space:0}), {bg:NAVY, w:1350, borders:true}),
-  ]);
+  // ── ITEMS TABLE ──
+  const itemHdr = tr([
+    tc(p(run('UNIDADES',{bold:true,sz:8,color:WHITE,font:'Arial'}),{align:'center',before:0,after:0}),{w:900,bg:NAVY}),
+    tc(p(run('DESCRIPCIÓN',{bold:true,sz:8,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:5760,bg:NAVY}),
+    tc(p(run('P. UNITARIO',{bold:true,sz:8,color:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:1350,bg:NAVY}),
+    tc(p(run('TOTAL',{bold:true,sz:8,color:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:1350,bg:NAVY}),
+  ], 360);
 
-  const itemRows = items.map((item, i) => {
+  const itemRows = items.map((item,i) => {
     const totCosto = (item.qty||0)*(item.costo||0)+(nacMap[item.id]||0);
     const {venta} = calcItemVenta(item, totCosto);
     const unitVenta = item.qty>0 ? venta/item.qty : 0;
     const uLabel = {unidad:'',hora:' hr.',dia:' día'}[item.tipo_unidad]||'';
     const bg = i%2===0 ? 'F8F9FA' : WHITE;
-
-    // Description with specs
-    let descContent = para(run(item.desc||'—', {bold:true, size:9}), {space:0});
+    let descP = [p(run(item.desc||'—',{bold:true,sz:9,font:'Arial'}),{before:0,after:0})];
     if(item.specs) {
-      const specLines = item.specs.split('\n').filter(l=>l.trim());
-      specLines.forEach(line => {
-        descContent += para(run('• '+line.trim(), {size:7, color:'505A69'}), {space:0});
+      item.specs.split('\n').filter(l=>l.trim()).forEach(line=>{
+        descP.push(p(run('• '+line.trim(),{sz:7,color:'505A69',font:'Arial'}),{before:0,after:0}));
       });
     }
-
     return tr([
-      tc(para(run(fmtNum(item.qty)+uLabel, {size:9}), {align:'center', space:0}), {bg, w:900, borders:true}),
-      tc(descContent, {bg, w:5760, borders:true}),
-      tc(para(run(cur+' '+fmtNum(unitVenta,2), {size:9, color:TEAL}), {align:'right', space:0}), {bg, w:1350, borders:true}),
-      tc(para(run(cur+' '+fmtNum(venta,2), {bold:true, size:9, color:NAVY}), {align:'right', space:0}), {bg, w:1350, borders:true}),
-    ]);
+      tc(p(run(fmtNum(item.qty)+uLabel,{sz:9,font:'Arial'}),{align:'center',before:0,after:0}),{w:900,bg}),
+      tc(descP.join(''),{w:5760,bg}),
+      tc(p(run(cur+' '+fmtNum(unitVenta,2),{sz:9,color:TEAL,font:'Arial'}),{align:'right',before:0,after:0}),{w:1350,bg}),
+      tc(p(run(cur+' '+fmtNum(venta,2),{bold:true,sz:9,color:NAVY,font:'Arial'}),{align:'right',before:0,after:0}),{w:1350,bg}),
+    ], 400);
   });
 
-  bodyParts.push(table([itemHeaderRow, ...itemRows]));
-  bodyParts.push(para('', {space:0}));
+  body.push(tbl([itemHdr,...itemRows],[900,5760,1350,1350]));
+  body.push(p('',{before:80,after:0}));
 
-  // NOTES
+  // ── NOTES ──
   if(v('cl_notas')) {
-    bodyParts.push(`<w:p><w:pPr><w:pBdr><w:left w:val="single" w:sz="12" w:space="4" w:color="${TEAL}"/></w:pBdr><w:shd w:val="clear" w:fill="F8F9FA"/><w:spacing w:after="80"/></w:pPr>${run(v('cl_notas'), {italic:true, size:9, color:'555555'})}</w:p>`);
+    body.push(p(run(v('cl_notas'),{italic:true,sz:9,color:'555555',font:'Arial'}),{before:0,after:80}));
   }
 
-  // BANK INFO
-  bodyParts.push(para([
-    run('Cuenta Bancaria Banco Nacional — Dólares: ', {bold:true, size:9}),
-    run('IBAN: CR69015100220025236751', {size:9, font:'Courier New'}),
-  ], {space:80}));
+  // ── BANK INFO ──
+  body.push(p([
+    run('Cuenta Bancaria Banco Nacional — Dólares:  ',{bold:true,sz:9,font:'Arial'}),
+    run('IBAN: CR69015100220025236751',{sz:9,font:'Courier New'}),
+  ],{before:0,after:120}));
 
-  // FOOTER: CONDITIONS (left) + TOTALS (right)
-  const condRows = [
-    ['Lugar de entrega:', v('cl_entrega')],
-    ['Plazo de entrega:', v('cl_plazo')],
-    ['Vigencia de oferta:', v('cl_vigencia')],
-    ['Elaborado por:', v('cl_elaborado')],
-    ['Garantía:', v('cl_garantia')],
+  // ── FOOTER: Conditions (left) + Totals (right) ──
+  const condRows2 = [
+    ['Lugar de entrega:',v('cl_entrega')],
+    ['Plazo de entrega:',v('cl_plazo')],
+    ['Vigencia de oferta:',v('cl_vigencia')],
+    ['Elaborado por:',v('cl_elaborado')],
+    ['Garantía:',v('cl_garantia')],
   ];
+  const condTbl = tbl([
+    tr([tc(p(run('Condiciones',{bold:true,sz:9,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:5148,bg:NAVY})],[5148]),
+    ...condRows2.map((row,i)=>tr([
+      tc(p(run(row[0],{bold:true,sz:8,font:'Arial'}),{before:0,after:0}),{w:1980,bg:'F8F9FA'}),
+      tc(p(run(row[1]||'',{sz:8,font:'Arial'}),{before:0,after:0}),{w:3168,bg:WHITE}),
+    ],300)),
+  ],[1980,3168]);
 
-  const condTableRows = [
-    tr([tc(para(run('Condiciones', {bold:true, size:9, color:WHITE}), {space:0}), {bg:NAVY, w:5148, borders:true})]),
-    ...condRows.map((row, i) => tr([
-      tc(para(run(row[0], {bold:true, size:8}), {space:0}), {bg:'F8F9FA', w:1980, borders:true}),
-      tc(para(run(row[1]||'', {size:8}), {space:0}), {bg:WHITE, w:3168, borders:true}),
-    ], {height:280})),
-  ];
+  const totTbl = tbl([
+    tr([tc(p(run('Sub total',{sz:9,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:2124,bg:NAVY}),
+        tc(p(run(cur+' '+fmtNum(totalVenta,2),{sz:9,color:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:2124,bg:NAVY})],300),
+    tr([tc(p(run('I.V.A ('+Math.round(iva*100)+'%)',{sz:9,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:2124,bg:NAVY}),
+        tc(p(run(cur+' '+fmtNum(ivaAmt,2),{sz:9,color:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:2124,bg:NAVY})],300),
+    tr([tc(p(run('Total',{bold:true,sz:12,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:2124,bg:NAVY}),
+        tc(p(run(cur+' '+fmtNum(total,2),{bold:true,sz:12,color:ACCENT,font:'Arial'}),{align:'right',before:0,after:0}),{w:2124,bg:NAVY})],480),
+  ],[2124,2124]);
 
-  const totalsRows = [
-    tr([
-      tc(para(run('Sub total', {size:9, color:WHITE}), {space:0}), {bg:NAVY, w:2088, borders:true}),
-      tc(para(run(cur+' '+fmtNum(totalVenta,2), {size:9, color:WHITE}), {align:'right', space:0}), {bg:NAVY, w:2124, borders:true}),
-    ], {height:280}),
-    tr([
-      tc(para(run('I.V.A ('+Math.round(iva*100)+'%)', {size:9, color:WHITE}), {space:0}), {bg:NAVY, w:2088, borders:true}),
-      tc(para(run(cur+' '+fmtNum(ivaAmt,2), {size:9, color:WHITE}), {align:'right', space:0}), {bg:NAVY, w:2124, borders:true}),
-    ], {height:280}),
-    tr([
-      tc(para(run('Total', {bold:true, size:12, color:WHITE}), {space:0}), {bg:NAVY, w:2088, borders:true}),
-      tc(para(run(cur+' '+fmtNum(total,2), {bold:true, size:12, color:'E8A020'}), {align:'right', space:0}), {bg:NAVY, w:2124, borders:true}),
-    ], {height:400}),
-  ];
+  // Side-by-side footer
+  const footerTbl = `<w:tbl><w:tblPr>
+    <w:tblW w:w="9360" w:type="dxa"/>
+    <w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>
+    <w:tblLayout w:type="fixed"/>
+  </w:tblPr><w:tblGrid><w:gridCol w:w="5148"/><w:gridCol w:w="212"/><w:gridCol w:w="4000"/></w:tblGrid>
+  <w:tr>
+    <w:tc><w:tcPr><w:tcW w:w="5148" w:type="dxa"/><w:tcBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/></w:tcBorders><w:vAlign w:val="top"/></w:tcPr>${condTbl}</w:tc>
+    <w:tc><w:tcPr><w:tcW w:w="212" w:type="dxa"/><w:tcBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/></w:tcBorders></w:tcPr><w:p/></w:tc>
+    <w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/><w:tcBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/></w:tcBorders><w:vAlign w:val="top"/></w:tcPr>${totTbl}</w:tc>
+  </w:tr></w:tbl>`;
+  body.push(footerTbl);
 
-  // Side-by-side: conditions table + totals table
-  const footerTable = `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/></w:tblPr>
-    <w:tr>
-      <w:tc><w:tcPr><w:tcW w:w="5400" w:type="dxa"/><w:tcBorders><w:right w:val="none"/></w:tcBorders></w:tcPr>
-        ${table(condTableRows)}
-      </w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="240" w:type="dxa"/><w:tcBorders><w:left w:val="none"/><w:right w:val="none"/></w:tcBorders></w:tcPr>
-        <w:p/>
-      </w:tc>
-      <w:tc><w:tcPr><w:tcW w:w="3720" w:type="dxa"/><w:tcBorders><w:left w:val="none"/></w:tcBorders></w:tcPr>
-        ${table(totalsRows)}
-      </w:tc>
-    </w:tr>
-  </w:tbl>`;
-  bodyParts.push(footerTable);
-
-  // CLOSING MESSAGE
+  // ── CLOSING MESSAGE ──
   if(v('cl_cierre')) {
-    bodyParts.push(para('', {space:80}));
-    bodyParts.push(`<w:p><w:pPr><w:pBdr><w:top w:val="single" w:sz="4" w:color="${BORDER}"/></w:pBdr><w:jc w:val="center"/><w:spacing w:before="100" w:after="0"/></w:pPr>${run(v('cl_cierre'), {italic:true, size:9, color:GRAY})}</w:p>`);
+    body.push(p('',{before:120,after:0}));
+    body.push(p(run(v('cl_cierre'),{italic:true,sz:9,color:GRAY,font:'Arial'}),{align:'center',before:80,after:0}));
   }
 
-  // ── Build .docx ZIP ──
+  // ── Section properties (A4 margins) ──
+  const sectPr = `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1418" w:bottom="1134" w:left="1418" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr>`;
+
+  // ── Build XML strings ──
   const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
-  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+<w:document xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:o="urn:schemas-microsoft-com:office:office"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
   xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
@@ -1461,19 +1432,39 @@ async function generateWord() {
   xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
   xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
-  mc:Ignorable="w14 w15">
-  <w:body>
-    ${bodyParts.join('\n    ')}
-    <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="1134" w:right="1418" w:bottom="1134" w:left="1418" w:header="709" w:footer="709" w:gutter="0"/>
-    </w:sectPr>
-  </w:body>
+  mc:Ignorable="w14">
+  <w:body>${body.join('')}${sectPr}</w:body>
 </w:document>`;
+
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault><w:rPr>
+      <w:rFonts w:ascii="Arial" w:hAnsi="Arial"/>
+      <w:sz w:val="18"/><w:szCs w:val="18"/>
+      <w:lang w:val="es-ES"/>
+    </w:rPr></w:rPrDefault>
+    <w:pPrDefault><w:pPr>
+      <w:spacing w:line="240" w:lineRule="auto" w:before="0" w:after="0"/>
+    </w:pPr></w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+  </w:style>
+</w:styles>`;
+
+  const settingsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:defaultTabStop w:val="720"/>
+  <w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>
+</w:settings>`;
 
   const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+  ${logoB64?'<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>':''}
 </Relationships>`;
 
   const appRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -1481,36 +1472,42 @@ async function generateWord() {
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`;
 
-  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
 </Types>`;
 
-  // Convert logo base64 to binary
+  // ── ZIP it up ──
   const zip = new JSZip();
-  zip.file('[Content_Types].xml', contentTypesXml);
+  zip.file('[Content_Types].xml', contentTypes);
   zip.file('_rels/.rels', appRelsXml);
   zip.file('word/document.xml', docXml);
+  zip.file('word/styles.xml', stylesXml);
+  zip.file('word/settings.xml', settingsXml);
   zip.file('word/_rels/document.xml.rels', relsXml);
-
-  // Add logo image if available
   if(logoB64) {
-    const logoBytes = Uint8Array.from(atob(logoB64), c => c.charCodeAt(0));
+    const logoBytes = Uint8Array.from(atob(logoB64), c=>c.charCodeAt(0));
     zip.file('word/media/logo.png', logoBytes);
   }
 
-  const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+  const blob = await zip.generateAsync({
+    type:'blob',
+    mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    compression:'DEFLATE'
+  });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
+  const a2 = document.createElement('a');
+  a2.href = url;
   const qtNum = v('cl_qt_num')||'QT';
-  a.download = qtNum + '.docx';
-  a.click();
+  a2.download = qtNum+'.docx';
+  a2.click();
   URL.revokeObjectURL(url);
-  showToast('Word descargado: '+qtNum+'.docx', 'success');
+  showToast('Word descargado: '+qtNum+'.docx','success');
 }
 
 
