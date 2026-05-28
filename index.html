@@ -1190,357 +1190,163 @@ function generateExcel() {
   showToast('Excel descargado: CC_'+qtNum+'.xlsx','success');
 }
 
-// ===== WORD (.docx via Open XML) =====
-async function generateWord() {
-  const cur = v('cl_moneda')||'USD';
-  const iva = parseFloat(v('cl_iva')||13)/100;
-  const {totalVenta, ivaAmt, total} = calcTotals();
+// ===== WORD =====
+function generateWord() {
+  const cur=v('cl_moneda')||'USD';
+  const iva=parseFloat(v('cl_iva')||13)/100;
+  const {totalVenta,ivaAmt,total}=calcTotals();
+  const NAVY='#1A2744'; const TEAL='#1A6B72';
 
-  const NAVY='1A2744', TEAL='1A6B72', GRAY='6C757D', WHITE='FFFFFF',
-        LTGRAY='F8F9FA', BORDER='DEE2E6', ACCENT='E8A020';
+  const itemsRows=items.map((item,i)=>{
+    const totCosto=(item.qty||0)*(item.costo||0)+(nacMap[item.id]||0);
+    const {venta}=calcItemVenta(item,totCosto);
+    const unitVenta=item.qty>0?venta/item.qty:0;
+    const uLabel={unidad:'',hora:' hr.',dia:' día'}[item.tipo_unidad]||'';
+    const bg=i%2===0?'#FFFFFF':'#F8F9FA';
+    return `<tr>
+      <td style="width:55pt;padding:4pt 6pt;border:1pt solid #DEE2E6;text-align:center;font-size:9pt;background:${bg};">${fmtNum(item.qty)}${uLabel}</td>
+      <td style="padding:4pt 6pt;border:1pt solid #DEE2E6;font-size:9pt;background:${bg};vertical-align:top;">${formatItemDesc(item)}</td>
+      <td style="width:80pt;padding:4pt 6pt;border:1pt solid #DEE2E6;text-align:right;font-size:9pt;background:${bg};color:#6C757D;">${cur} ${fmtNum(unitVenta,2)}</td>
+      <td style="width:80pt;padding:4pt 6pt;border:1pt solid #DEE2E6;text-align:right;font-size:9pt;font-weight:bold;background:${bg};">${cur} ${fmtNum(venta,2)}</td>
+    </tr>`;
+  }).join('');
 
-  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-  // ── Run properties ──
-  const rPr = ({bold,italic,sz,color,font}={}) => {
-    let s = '';
-    if(font) s += `<w:rFonts w:ascii="${font}" w:hAnsi="${font}"/>`;
-    if(bold) s += '<w:b/><w:bCs/>';
-    if(italic) s += '<w:i/><w:iCs/>';
-    if(color) s += `<w:color w:val="${color}"/>`;
-    if(sz) s += `<w:sz w:val="${sz*2}"/><w:szCs w:val="${sz*2}"/>`;
-    return s ? `<w:rPr>${s}</w:rPr>` : '';
-  };
-
-  // ── Single run ──
-  const run = (text, opts={}) =>
-    `<w:r>${rPr(opts)}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
-
-  // ── Paragraph ──
-  const p = (content, {align,before,after,border}={}) => {
-    let ppr = '';
-    if(align) ppr += `<w:jc w:val="${align}"/>`;
-    const sp_b = before ?? 0;
-    const sp_a = after ?? 0;
-    ppr += `<w:spacing w:before="${sp_b}" w:after="${sp_a}"/>`;
-    if(border) ppr += `<w:pBdr><w:bottom w:val="single" w:sz="12" w:space="1" w:color="${NAVY}"/></w:pBdr>`;
-    return `<w:p><w:pPr>${ppr}</w:pPr>${Array.isArray(content)?content.join(''):content}</w:p>`;
-  };
-
-  // ── Table cell ──
-  const tc = (content, {w, bg, vAlign='center', noLeft, noRight, span}={}) => {
-    const wAttr = w ? `<w:tcW w:w="${w}" w:type="dxa"/>` : '';
-    const shd = bg ? `<w:shd w:val="clear" w:color="auto" w:fill="${bg}"/>` : '';
-    const mar = `<w:tcMar><w:top w:w="57" w:type="dxa"/><w:left w:w="115" w:type="dxa"/><w:bottom w:w="57" w:type="dxa"/><w:right w:w="115" w:type="dxa"/></w:tcMar>`;
-    const va = `<w:vAlign w:val="${vAlign}"/>`;
-    const spanAttr = span ? `<w:gridSpan w:val="${span}"/>` : '';
-    const bdr = noLeft||noRight ? `<w:tcBorders>
-      ${noLeft?'<w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>':''}
-      ${noRight?'<w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>':''}
-    </w:tcBorders>` : '';
-    return `<w:tc><w:tcPr>${wAttr}${spanAttr}${shd}${bdr}${va}${mar}</w:tcPr>${Array.isArray(content)?content.join(''):content}</w:tc>`;
-  };
-
-  // ── Table row ──
-  const tr = (cells, height=400) =>
-    `<w:tr><w:trPr><w:trHeight w:val="${height}" w:hRule="atLeast"/></w:trPr>${cells.join('')}</w:tr>`;
-
-  // ── Full table ──  
-  // ── Full table ──
-  const tbl = (rows, cols, opts={}) => {
-    const grid = cols.map(w=>`<w:gridCol w:w="${w}"/>`).join('');
-    const bColor = opts.bColor||'E8ECEF';
-    const borders = `<w:tblBorders>
-      <w:top w:val="single" w:sz="6" w:space="0" w:color="${bColor}"/>
-      <w:left w:val="single" w:sz="6" w:space="0" w:color="${bColor}"/>
-      <w:bottom w:val="single" w:sz="6" w:space="0" w:color="${bColor}"/>
-      <w:right w:val="single" w:sz="6" w:space="0" w:color="${bColor}"/>
-      <w:insideH w:val="single" w:sz="6" w:space="0" w:color="${bColor}"/>
-      <w:insideV w:val="single" w:sz="6" w:space="0" w:color="${bColor}"/>
-    </w:tblBorders>`;
-    const totalW = cols.reduce((a,b)=>a+b,0);
-    return `<w:tbl><w:tblPr>
-      <w:tblW w:w="0" w:type="auto"/>
-      <w:jc w:val="left"/>
-      ${borders}
-      <w:tblLayout w:type="fixed"/>
-      <w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>
-    </w:tblPr><w:tblGrid>${grid}</w:tblGrid>${rows.join('')}</w:tbl>`;
-  };
-
-  // ── Label cell (navy) ──
-  const lbl = (text, w) => tc(
-    p(run(text,{bold:true,sz:9,color:WHITE,font:'Arial'}), {before:0,after:0}),
-    {w, bg:NAVY}
-  );
-
-  // ── Value cell ──
-  const val = (text, w, bg) => tc(
-    p(run(text,{sz:9,font:'Arial'}), {before:0,after:0}),
-    {w, bg:bg||LTGRAY}
-  );
-
-  // ── Get logo base64 ──
+  // Get logo
   const logoEl = document.querySelector('.preview-qt img') || document.querySelector('header .logo img');
-  const logoB64 = logoEl ? logoEl.src.split(',')[1] : '';
+  const logoSrc = logoEl ? logoEl.src : '';
 
-  // ══════════════════════════════════════════════════════
-  // DOCUMENT BODY
-  // ══════════════════════════════════════════════════════
-  const body = [];
+  const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:w="urn:schemas-microsoft-com:office:word"
+  xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"><title>Cotizacion ${escHtml(v('cl_qt_num'))}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>90</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<style>
+@page{size:A4;margin:2cm 2.5cm 2cm 2.5cm}
+body{font-family:Arial,sans-serif;font-size:10pt;color:#212529}
+p{margin:0 0 4pt 0}
+table{border-collapse:collapse}
+</style></head><body>
 
-  // ── HEADER: Logo + company info (left) | Cotización (right) ──
-  // Using a simple 2-col table, no borders
-  const logoDrawing = logoB64 ? `<w:r><w:rPr/><w:drawing>
-    <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
-               distT="0" distB="0" distL="0" distR="0">
-      <wp:extent cx="1600000" cy="700000"/>
-      <wp:effectExtent l="0" t="0" r="0" b="0"/>
-      <wp:docPr id="1" name="Logo"/>
-      <wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
-      <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
-          <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-            <pic:nvPicPr><pic:cNvPr id="1" name="Logo"/><pic:cNvPicPr/></pic:nvPicPr>
-            <pic:blipFill>
-              <a:blip r:embed="rId5" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
-              <a:stretch><a:fillRect/></a:stretch>
-            </pic:blipFill>
-            <pic:spPr>
-              <a:xfrm><a:off x="0" y="0"/><a:ext cx="1600000" cy="700000"/></a:xfrm>
-              <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-            </pic:spPr>
-          </pic:pic>
-        </a:graphicData>
-      </a:graphic>
-    </wp:inline>
-  </w:drawing></w:r>` : '';
+<!-- HEADER -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12pt;border-bottom:2pt solid ${NAVY};padding-bottom:8pt;">
+  <tr>
+    <td style="vertical-align:top;width:60%;">
+      <img src="${logoSrc}" style="height:30pt;width:auto;display:block;margin-bottom:4pt;" alt="Automation X">
+      <p style="font-size:8.5pt;font-weight:bold;color:${NAVY};margin:0 0 1pt 0;">Automation and Projects X S.A.</p>
+      <p style="font-size:7.5pt;color:#6C757D;margin:0 0 1pt 0;">Cédula Jurídica: 3-101-910400</p>
+      <p style="font-size:7.5pt;color:#6C757D;margin:0 0 1pt 0;">San José, Escazú, Costa Rica</p>
+      <p style="font-size:7.5pt;color:${TEAL};margin:0;">info@automation-x.tech</p>
+    </td>
+    <td style="text-align:right;vertical-align:top;">
+      <p style="font-size:22pt;font-weight:bold;color:${NAVY};margin:0;">Cotización</p>
+    </td>
+  </tr>
+</table>
 
-  const hdrTable = `<w:tbl><w:tblPr>
-    <w:tblW w:w="9070" w:type="dxa"/>
-    <w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>
-    <w:tblLayout w:type="fixed"/>
-  </w:tblPr><w:tblGrid><w:gridCol w:w="5000"/><w:gridCol w:w="4070"/></w:tblGrid>
-  <w:tr>
-    <w:tc><w:tcPr><w:tcW w:w="5000" w:type="dxa"/><w:tcBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="single" w:sz="18" w:space="0" w:color="${NAVY}"/><w:right w:val="none"/></w:tcBorders></w:tcPr>
-      <w:p><w:pPr><w:spacing w:before="0" w:after="80"/></w:pPr>${logoDrawing}</w:p>
-      ${p(run('Automation and Projects X S.A.',{bold:true,sz:9,color:NAVY,font:'Arial'}),{before:0,after:20})}
-      ${p(run('Cédula Jurídica: 3-101-910400',{sz:8,color:GRAY,font:'Arial'}),{before:0,after:0})}
-      ${p(run('San José, Escazú, Costa Rica',{sz:8,color:GRAY,font:'Arial'}),{before:0,after:0})}
-      ${p(run('info@automation-x.tech',{sz:8,color:TEAL,font:'Arial'}),{before:0,after:120})}
-    </w:tc>
-    <w:tc><w:tcPr><w:tcW w:w="4070" w:type="dxa"/><w:tcBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="single" w:sz="18" w:space="0" w:color="${NAVY}"/><w:right w:val="none"/></w:tcBorders><w:vAlign w:val="top"/></w:tcPr>
-      ${p(run('Cotización',{bold:true,sz:22,color:NAVY,font:'Arial'}),{align:'right',before:0,after:0})}
-    </w:tc>
-  </w:tr></w:tbl>`;
-  body.push(hdrTable);
-  body.push(p('',{before:120,after:120}));
+<!-- CLIENT TABLE -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10pt;">
+  <tr>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};border-bottom:1.5pt solid white;width:18%;">Cliente:</td>
+    <td style="padding:3pt 6pt;font-size:9pt;border:1pt solid #DEE2E6;width:32%;">${escHtml(v('cl_empresa'))}</td>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};border-bottom:1.5pt solid white;width:20%;">N° cotización:</td>
+    <td style="padding:3pt 6pt;font-size:9pt;font-weight:bold;font-family:Courier New;border:1pt solid #DEE2E6;width:30%;">${escHtml(v('cl_qt_num'))}</td>
+  </tr>
+  <tr>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};border-bottom:1.5pt solid white;">Contacto:</td>
+    <td style="padding:3pt 6pt;font-size:9pt;background:#F8F9FA;border:1pt solid #DEE2E6;">${escHtml(v('cl_contacto'))}</td>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};border-bottom:1.5pt solid white;">Fecha:</td>
+    <td style="padding:3pt 6pt;font-size:9pt;background:#F8F9FA;border:1pt solid #DEE2E6;">${formatDate(v('cl_fecha'))}</td>
+  </tr>
+  <tr>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};border-bottom:1.5pt solid white;">Teléfono:</td>
+    <td style="padding:3pt 6pt;font-size:9pt;border:1pt solid #DEE2E6;">${escHtml(v('cl_telefono'))}</td>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};border-bottom:1.5pt solid white;">Cond. de pago:</td>
+    <td style="padding:3pt 6pt;font-size:9pt;border:1pt solid #DEE2E6;">${escHtml(v('cl_pago'))}</td>
+  </tr>
+  <tr>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};border-bottom:1.5pt solid white;">e-mail:</td>
+    <td style="padding:3pt 6pt;font-size:9pt;background:#F8F9FA;border:1pt solid #DEE2E6;">${escHtml(v('cl_email'))}</td>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};border-bottom:1.5pt solid white;">Moneda:</td>
+    <td style="padding:3pt 6pt;font-size:9pt;background:#F8F9FA;border:1pt solid #DEE2E6;">${cur}</td>
+  </tr>
+  <tr>
+    <td style="padding:3pt 6pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;border:1pt solid ${NAVY};">Dirección:</td>
+    <td colspan="3" style="padding:3pt 6pt;font-size:9pt;border:1pt solid #DEE2E6;">${escHtml(v('cl_direccion'))}</td>
+  </tr>
+</table>
 
-  // ── CLIENT TABLE ──
-  body.push(tbl([
-    tr([lbl('Cliente:',1800), val(v('cl_empresa'),3900), lbl('N° cotización:',1800), val(v('cl_qt_num'),2100,WHITE)]),
-    tr([lbl('Contacto:',1800), val(v('cl_contacto'),3900,WHITE), lbl('Fecha:',1800), val(formatDate(v('cl_fecha')),2100)]),
-    tr([lbl('Teléfono:',1800), val(v('cl_telefono'),3900), lbl('Cond. de pago:',1800), val(v('cl_pago'),2100,WHITE)]),
-    tr([lbl('e-mail:',1800), val(v('cl_email'),3900,WHITE), lbl('Moneda:',1800), val(cur,2100)]),
-    tr([lbl('Dirección:',1800), tc(p(run(v('cl_direccion'),{sz:9,font:'Arial'}),{before:0,after:0}),{w:7800,bg:WHITE,span:3})]),
-  ],[1800,3900,1800,2100]));
+<p style="font-size:9pt;font-style:italic;color:#495057;margin-bottom:8pt;">
+  Automation and Projects X S.A agradece la confianza y tiene el agrado de presentar la siguiente oferta:
+</p>
 
-  body.push(p('',{before:80,after:0}));
-  body.push(p(run('Automation and Projects X S.A agradece la confianza y tiene el agrado de presentar la siguiente oferta:',{italic:true,sz:9,color:GRAY,font:'Arial'}),{before:0,after:120}));
+<!-- ITEMS TABLE -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10pt;">
+  <thead>
+    <tr>
+      <th style="width:55pt;padding:5pt 6pt;background:${NAVY};color:white;font-size:9pt;text-align:center;border:1pt solid ${NAVY};">Unidades</th>
+      <th style="padding:5pt 6pt;background:${NAVY};color:white;font-size:9pt;text-align:left;border:1pt solid ${NAVY};">Descripción</th>
+      <th style="width:82pt;padding:5pt 6pt;background:${NAVY};color:white;font-size:9pt;text-align:right;border:1pt solid ${NAVY};">P. Unitario</th>
+      <th style="width:82pt;padding:5pt 6pt;background:${NAVY};color:white;font-size:9pt;text-align:right;border:1pt solid ${NAVY};">Total</th>
+    </tr>
+  </thead>
+  <tbody>${itemsRows}</tbody>
+</table>
 
-  // ── ITEMS TABLE ──
-  const itemHdr = tr([
-    tc(p(run('UNIDADES',{bold:true,sz:8,color:WHITE,font:'Arial'}),{align:'center',before:0,after:0}),{w:900,bg:NAVY}),
-    tc(p(run('DESCRIPCIÓN',{bold:true,sz:8,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:5570,bg:NAVY}),
-    tc(p(run('P. UNITARIO',{bold:true,sz:8,color:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:1300,bg:NAVY}),
-    tc(p(run('TOTAL',{bold:true,sz:8,color:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:1300,bg:NAVY}),
-  ], 360);
+${v('cl_notas')?`<p style="font-size:9pt;font-style:italic;color:#555;margin-bottom:8pt;padding:6pt 10pt;background:#F8F9FA;border-left:3pt solid ${TEAL};">${escHtml(v('cl_notas'))}</p>`:''}
 
-  const itemRows = items.map((item,i) => {
-    const totCosto = (item.qty||0)*(item.costo||0)+(nacMap[item.id]||0);
-    const {venta} = calcItemVenta(item, totCosto);
-    const unitVenta = item.qty>0 ? venta/item.qty : 0;
-    const uLabel = {unidad:'',hora:' hr.',dia:' día'}[item.tipo_unidad]||'';
-    const bg = i%2===0 ? 'F8F9FA' : WHITE;
-    let descP = [p(run(item.desc||'—',{bold:true,sz:9,font:'Arial'}),{before:0,after:0})];
-    if(item.specs) {
-      item.specs.split('\n').filter(l=>l.trim()).forEach(line=>{
-        descP.push(p(run('• '+line.trim(),{sz:7,color:'505A69',font:'Arial'}),{before:0,after:0}));
-      });
-    }
-    return tr([
-      tc(p(run(fmtNum(item.qty)+uLabel,{sz:9,font:'Arial'}),{align:'center',before:0,after:0}),{w:900,bg}),
-      tc(descP.join(''),{w:5570,bg}),
-      tc(p(run(cur+' '+fmtNum(unitVenta,2),{sz:9,color:GRAY,font:'Arial'}),{align:'right',before:0,after:0}),{w:1300,bg}),
-      tc(p(run(cur+' '+fmtNum(venta,2),{bold:true,sz:9,color:NAVY,font:'Arial'}),{align:'right',before:0,after:0}),{w:1300,bg}),
-    ], 400);
-  });
+<!-- BANK INFO -->
+<p style="font-size:8.5pt;margin-bottom:4pt;"><b>Cuenta Bancaria de Banco Nacional — Dólares:</b></p>
+<p style="font-size:8.5pt;margin-bottom:10pt;font-family:Courier New;">IBAN: CR69015100220025236751</p>
 
-  body.push(tbl([itemHdr,...itemRows],[900,5570,1300,1300]));
-  body.push(p('',{before:80,after:0}));
+<!-- FOOTER: CONDITIONS + TOTALS -->
+<table width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td width="57%" style="vertical-align:top;padding-right:12pt;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1pt solid #DEE2E6;">
+        <tr><td colspan="2" style="padding:4pt 7pt;background:${NAVY};color:white;font-weight:bold;font-size:9pt;">Condiciones</td></tr>
+        <tr><td style="padding:3pt 7pt;font-weight:bold;font-size:8.5pt;border-bottom:1pt solid #DEE2E6;width:105pt;background:#F8F9FA;">Lugar de entrega:</td><td style="padding:3pt 7pt;font-size:8.5pt;border-bottom:1pt solid #DEE2E6;">${escHtml(v('cl_entrega'))}</td></tr>
+        <tr><td style="padding:3pt 7pt;font-weight:bold;font-size:8.5pt;border-bottom:1pt solid #DEE2E6;background:#F8F9FA;">Plazo de entrega:</td><td style="padding:3pt 7pt;font-size:8.5pt;border-bottom:1pt solid #DEE2E6;">${escHtml(v('cl_plazo'))}</td></tr>
+        <tr><td style="padding:3pt 7pt;font-weight:bold;font-size:8.5pt;border-bottom:1pt solid #DEE2E6;background:#F8F9FA;">Vigencia de oferta:</td><td style="padding:3pt 7pt;font-size:8.5pt;border-bottom:1pt solid #DEE2E6;">${escHtml(v('cl_vigencia'))}</td></tr>
+        <tr><td style="padding:3pt 7pt;font-weight:bold;font-size:8.5pt;border-bottom:1pt solid #DEE2E6;background:#F8F9FA;">Elaborado por:</td><td style="padding:3pt 7pt;font-size:8.5pt;border-bottom:1pt solid #DEE2E6;">${escHtml(v('cl_elaborado'))}</td></tr>
+        <tr><td style="padding:3pt 7pt;font-weight:bold;font-size:8.5pt;background:#F8F9FA;">Garantía:</td><td style="padding:3pt 7pt;font-size:8.5pt;">${escHtml(v('cl_garantia'))}</td></tr>
+      </table>
+    </td>
+    <td width="43%" style="vertical-align:top;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1pt solid #DEE2E6;">
+        <tr>
+          <td style="padding:5pt 9pt;font-size:10pt;border-bottom:1pt solid #DEE2E6;background:${NAVY};color:white;">Sub total</td>
+          <td style="padding:5pt 9pt;font-size:10pt;text-align:right;border-bottom:1pt solid #DEE2E6;background:${NAVY};color:white;">${cur} ${fmtNum(totalVenta,2)}</td>
+        </tr>
+        <tr>
+          <td style="padding:5pt 9pt;font-size:10pt;border-bottom:1pt solid #DEE2E6;background:${NAVY};color:white;">I.V.A (${(iva*100).toFixed(0)}%)</td>
+          <td style="padding:5pt 9pt;font-size:10pt;text-align:right;border-bottom:1pt solid #DEE2E6;background:${NAVY};color:white;">${cur} ${fmtNum(ivaAmt,2)}</td>
+        </tr>
+        <tr>
+          <td style="padding:7pt 9pt;font-size:12pt;font-weight:bold;background:${NAVY};color:white;">Total</td>
+          <td style="padding:7pt 9pt;font-size:12pt;font-weight:bold;text-align:right;background:${NAVY};color:#E8A020;">${cur} ${fmtNum(total,2)}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
 
-  // ── FOOTER: Single wide table with conditions (left) + totals (right) ──
-  // Left side: label col + value col (each row of conditions)
-  // Right side: total amounts  
-  // Approach: one table, each row has [lbl, val, gap, lbl2, val2]
-  // Conditions rows + totals rows side by side using a 5-col table
-  
-  // Col widths: lbl=1800, val=3000, gap=200, tot_lbl=2035, tot_val=2035 = 9070
-  const C_LBL=1800, C_VAL=3000, C_GAP=200, C_TOT=2035;
-  
-  // Build combined footer table
-  const footerRows = [];
-  
-  // Header row: "Condiciones" | (blank gap) | (blank)
-  footerRows.push(`<w:tr><w:trPr><w:trHeight w:val="380" w:hRule="atLeast"/></w:trPr>
-    ${tc(p(run('Condiciones',{bold:true,sz:9,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:C_LBL+C_VAL,bg:NAVY,span:2})}
-    ${tc(p('',{before:0,after:0}),{w:C_GAP,bg:WHITE,noLeft:true,noRight:true})}
-    ${tc(p(run('Sub total',{sz:9,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:C_TOT,bg:NAVY})}
-    ${tc(p(run(cur+' '+fmtNum(totalVenta,2),{sz:9,color:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:C_TOT,bg:NAVY})}
-  </w:tr>`);
-  
-  // Remaining rows: cond + totals
-  const cond_tot = [
-    [condRows2[0], ['I.V.A ('+Math.round(iva*100)+'%)', cur+' '+fmtNum(ivaAmt,2)]],
-    [condRows2[1], ['Total', cur+' '+fmtNum(total,2), true]],
-    [condRows2[2], null],
-    [condRows2[3], null],
-    [condRows2[4], null],
-  ];
-  
-  cond_tot.forEach(([cRow, totRow], i) => {
-    const isTotal = totRow && totRow[2];
-    const condBg = i%2===0 ? 'F8F9FA' : WHITE;
-    const gapCell = totRow === null
-      ? '<w:tc><w:tcPr><w:tcW w:w="' + C_GAP + '" w:type="dxa"/><w:tcBorders><w:top w:val="none" w:sz="0" w:color="auto"/><w:left w:val="none" w:sz="0" w:color="auto"/><w:bottom w:val="none" w:sz="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:color="auto"/></w:tcBorders><w:shd w:val="clear" w:color="FFFFFF" w:fill="FFFFFF"/></w:tcPr><w:p/></w:tc>'
-      : tc(p('',{before:0,after:0}),{w:C_GAP,bg:WHITE,noLeft:true,noRight:true});
-    const totCells = totRow
-      ? tc(p(run(totRow[0],{bold:isTotal,sz:isTotal?12:9,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:C_TOT,bg:NAVY}) +
-        tc(p(run(totRow[1],{bold:isTotal,sz:isTotal?12:9,color:isTotal?ACCENT:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:C_TOT,bg:NAVY})
-      : '<w:tc><w:tcPr><w:tcW w:w="' + (C_TOT*2) + '" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:top w:val="none" w:sz="0" w:color="auto"/><w:left w:val="none" w:sz="0" w:color="auto"/><w:bottom w:val="none" w:sz="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:color="auto"/></w:tcBorders><w:shd w:val="clear" w:color="FFFFFF" w:fill="FFFFFF"/></w:tcPr><w:p/></w:tc>';
-    footerRows.push(
-      '<w:tr><w:trPr><w:trHeight w:val="' + (isTotal?480:300) + '" w:hRule="atLeast"/></w:trPr>' +
-      tc(p(run(cRow[0],{bold:true,sz:8,font:'Arial'}),{before:0,after:0}),{w:C_LBL,bg:condBg}) +
-      tc(p(run(cRow[1]||'',{sz:8,font:'Arial'}),{before:0,after:0}),{w:C_VAL,bg:WHITE}) +
-      gapCell + totCells +
-      '</w:tr>'
-    );
-  });
-  
-  body.push(tbl(footerRows,[C_LBL,C_VAL,C_GAP,C_TOT,C_TOT]));
+${v('cl_cierre')?`
+<p style="font-size:9pt;font-style:italic;color:#6C757D;margin-top:14pt;padding-top:8pt;border-top:1pt solid #DEE2E6;text-align:center;">
+  ${escHtml(v('cl_cierre'))}
+</p>`:''}
 
-  body.push(p('',{before:80,after:0}));
+</body></html>`;
 
-  // ── NOTES (after footer) ──
-  if(v('cl_notas')) {
-    body.push(p(run(v('cl_notas'),{italic:true,sz:9,color:'555555',font:'Arial'}),{before:0,after:60}));
-  }
-
-  // ── BANK INFO (after footer) ──
-  body.push(p([
-    run('Cuenta Bancaria Banco Nacional — Dólares:  ',{bold:true,sz:9,font:'Arial'}),
-    run('IBAN: CR69015100220025236751',{sz:9,font:'Courier New'}),
-  ],{before:0,after:60}));
-
-  // ── CLOSING MESSAGE ──
-  if(v('cl_cierre')) {
-    body.push(p('',{before:120,after:0}));
-    body.push(p(run(v('cl_cierre'),{italic:true,sz:9,color:GRAY,font:'Arial'}),{align:'center',before:80,after:0}));
-  }
-
-  // ── Section properties (A4 margins) ──
-  const sectPr = `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1418" w:bottom="1134" w:left="1418" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr>`;
-
-  // ── Build XML strings ──
-  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-  xmlns:o="urn:schemas-microsoft-com:office:office"
-  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-  xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
-  xmlns:v="urn:schemas-microsoft-com:vml"
-  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
-  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
-  mc:Ignorable="w14">
-  <w:body>${body.join('')}${sectPr}</w:body>
-</w:document>`;
-
-  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:docDefaults>
-    <w:rPrDefault><w:rPr>
-      <w:rFonts w:ascii="Arial" w:hAnsi="Arial"/>
-      <w:sz w:val="18"/><w:szCs w:val="18"/>
-      <w:lang w:val="es-ES"/>
-    </w:rPr></w:rPrDefault>
-    <w:pPrDefault><w:pPr>
-      <w:spacing w:line="240" w:lineRule="auto" w:before="0" w:after="0"/>
-    </w:pPr></w:pPrDefault>
-  </w:docDefaults>
-  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
-    <w:name w:val="Normal"/>
-  </w:style>
-</w:styles>`;
-
-  const settingsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:defaultTabStop w:val="720"/>
-  <w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>
-</w:settings>`;
-
-  const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
-  ${logoB64?'<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>':''}
-</Relationships>`;
-
-  const appRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-
-  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Default Extension="png" ContentType="image/png"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
-</Types>`;
-
-  // ── ZIP it up ──
-  const zip = new JSZip();
-  zip.file('[Content_Types].xml', contentTypes);
-  zip.file('_rels/.rels', appRelsXml);
-  zip.file('word/document.xml', docXml);
-  zip.file('word/styles.xml', stylesXml);
-  zip.file('word/settings.xml', settingsXml);
-  zip.file('word/_rels/document.xml.rels', relsXml);
-  if(logoB64) {
-    const logoBytes = Uint8Array.from(atob(logoB64), c=>c.charCodeAt(0));
-    zip.file('word/media/logo.png', logoBytes);
-  }
-
-  const blob = await zip.generateAsync({
-    type:'blob',
-    mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    compression:'DEFLATE'
-  });
-  const url = URL.createObjectURL(blob);
-  const a2 = document.createElement('a');
-  a2.href = url;
-  const qtNum = v('cl_qt_num')||'QT';
-  a2.download = qtNum+'.docx';
-  a2.click();
+  const blob=new Blob(['﻿'+html],{type:'application/msword'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const qtNum=v('cl_qt_num')||'QT';
+  a.download=qtNum+'.doc';
+  a.click();
   URL.revokeObjectURL(url);
-  showToast('Word descargado: '+qtNum+'.docx','success');
+  showToast('Word descargado: '+qtNum+'.doc','success');
 }
-
-
 // ===== PDF =====
 function generatePDF() {
   const qtNum = v('cl_qt_num') || 'Cotizacion';
