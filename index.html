@@ -1367,25 +1367,6 @@ async function generateWord() {
   body.push(tbl([itemHdr,...itemRows],[900,5570,1300,1300]));
   body.push(p('',{before:80,after:0}));
 
-  // ── NOTES ──
-  if(v('cl_notas')) {
-    body.push(p(run(v('cl_notas'),{italic:true,sz:9,color:'555555',font:'Arial'}),{before:0,after:80}));
-  }
-
-  // ── BANK INFO ──
-  body.push(p([
-    run('Cuenta Bancaria Banco Nacional — Dólares:  ',{bold:true,sz:9,font:'Arial'}),
-    run('IBAN: CR69015100220025236751',{sz:9,font:'Courier New'}),
-  ],{before:0,after:120}));
-
-  // ── FOOTER: Conditions (left) + Totals (right) ──
-  const condRows2 = [
-    ['Lugar de entrega:',v('cl_entrega')],
-    ['Plazo de entrega:',v('cl_plazo')],
-    ['Vigencia de oferta:',v('cl_vigencia')],
-    ['Elaborado por:',v('cl_elaborado')],
-    ['Garantía:',v('cl_garantia')],
-  ];
   // ── FOOTER: Single wide table with conditions (left) + totals (right) ──
   // Left side: label col + value col (each row of conditions)
   // Right side: total amounts  
@@ -1421,11 +1402,11 @@ async function generateWord() {
     footerRows.push(`<w:tr><w:trPr><w:trHeight w:val="${isTotal?480:300}" w:hRule="atLeast"/></w:trPr>
       ${tc(p(run(cRow[0],{bold:true,sz:8,font:'Arial'}),{before:0,after:0}),{w:C_LBL,bg:condBg})}
       ${tc(p(run(cRow[1]||'',{sz:8,font:'Arial'}),{before:0,after:0}),{w:C_VAL,bg:WHITE})}
-      ${tc(p('',{before:0,after:0}),{w:C_GAP,bg:WHITE,noLeft:true,noRight:true})}
+      ${totRow===null ? `<w:tc><w:tcPr><w:tcW w:w="${C_GAP}" w:type="dxa"/><w:tcBorders><w:top w:val="none" w:sz="0" w:color="auto"/><w:left w:val="none" w:sz="0" w:color="auto"/><w:bottom w:val="none" w:sz="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:color="auto"/></w:tcBorders><w:shd w:val="clear" w:color="FFFFFF" w:fill="FFFFFF"/></w:tcPr><w:p/></w:tc>` : tc(p('',{before:0,after:0}),{w:C_GAP,bg:WHITE,noLeft:true,noRight:true})}
       ${totRow
         ? `${tc(p(run(totRow[0],{bold:isTotal,sz:isTotal?12:9,color:WHITE,font:'Arial'}),{before:0,after:0}),{w:C_TOT,bg:NAVY})}
            ${tc(p(run(totRow[1],{bold:isTotal,sz:isTotal?12:9,color:isTotal?ACCENT:WHITE,font:'Arial'}),{align:'right',before:0,after:0}),{w:C_TOT,bg:NAVY})}`
-        : `<w:tc><w:tcPr><w:tcW w:w="${C_TOT*2}" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/></w:tcBorders><w:shd w:val="clear" w:color="auto" w:fill="FFFFFF"/></w:tcPr><w:p/></w:tc>`
+        : `<w:tc><w:tcPr><w:tcW w:w="${C_TOT*2}" w:type="dxa"/><w:gridSpan w:val="2"/><w:tcBorders><w:top w:val="none" w:sz="0" w:color="auto"/><w:left w:val="none" w:sz="0" w:color="auto"/><w:bottom w:val="none" w:sz="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:color="auto"/><w:insideH w:val="none" w:sz="0" w:color="auto"/><w:insideV w:val="none" w:sz="0" w:color="auto"/></w:tcBorders><w:shd w:val="clear" w:color="FFFFFF" w:fill="FFFFFF"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p></w:tc>`
       }
     </w:tr>`);
   });
