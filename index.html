@@ -102,7 +102,8 @@ header{background:var(--navy);padding:0 32px;display:flex;align-items:center;jus
 .toast.success{border-left:3px solid #22c55e}
 .toast.error{border-left:3px solid var(--red)}
 .preview-qt{background:white;border:1px solid var(--gray-200);border-radius:var(--radius);padding:32px;font-size:13px;line-height:1.6}
-.preview-header-table{width:100%;border-collapse:collapse;margin-bottom:20px}
+.preview-header-table{width:100%;border-collapse:collapse;margin-bottom:20px;table-layout:auto}
+.qt-num-cell{white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important;width:1%;}
 .preview-header-table td{padding:6px 10px;border:1px solid var(--gray-200);font-size:12px}
 .preview-header-table .label-cell{background:var(--navy);color:white;font-weight:600;width:120px;white-space:nowrap}
 .preview-items-table{width:100%;border-collapse:collapse;margin:16px 0}
@@ -120,6 +121,12 @@ small{font-size:11px;color:var(--gray-500)}
 .text-right{text-align:right}
 @page{margin:1.5cm;size:A4}
 @media print{
+  .qt-num-cell, .qt-num-cell strong {
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+    overflow: visible !important;
+  }
   #history-banner, .no-print, #notas-modal { display:none !important; }
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:white;margin:0;padding:0}
@@ -939,7 +946,7 @@ function renderPreview() {
       <div style="font-size:26px;font-weight:700;color:var(--navy);letter-spacing:-0.5px;">Cotización</div>
     </div>
     <table class="preview-header-table">
-      <tr><td class="label-cell">Cliente:</td><td style="width:260px;">${escHtml(v('cl_empresa'))}</td><td class="label-cell">N° cotización:</td><td><strong style="font-family:'DM Mono',monospace;">${escHtml(v('cl_qt_num'))}</strong></td></tr>
+      <tr><td class="label-cell">Cliente:</td><td style="width:260px;">${escHtml(v('cl_empresa'))}</td><td class="label-cell">N° cotización:</td><td class="qt-num-cell" style="white-space:nowrap;word-break:keep-all;overflow-wrap:normal;min-width:160px;"><strong style="font-family:'DM Mono',monospace;display:inline-block;white-space:nowrap;">${escHtml(v('cl_qt_num'))}</strong></td></tr>
       <tr><td class="label-cell">Contacto:</td><td>${escHtml(v('cl_contacto'))}</td><td class="label-cell">Fecha:</td><td>${formatDate(v('cl_fecha'))}</td></tr>
       <tr><td class="label-cell">Teléfono:</td><td>${escHtml(v('cl_telefono'))}</td><td class="label-cell">Cond. pago:</td><td>${escHtml(v('cl_pago'))}</td></tr>
       <tr><td class="label-cell">e-mail:</td><td>${escHtml(v('cl_email'))}</td><td class="label-cell">Moneda:</td><td>${cur}</td></tr>
