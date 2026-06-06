@@ -206,7 +206,7 @@ input[type=number] { -moz-appearance:textfield; }
     Notas internas
     <span id="notas-fab-dot" style="display:none;position:absolute;top:3px;right:3px;width:8px;height:8px;background:rgba(255,255,255,0.85);border-radius:50%;border:1.5px solid rgba(255,255,255,0.4);"></span>
   </button>
-  <span class="header-badge">Sistema de Cotizaciones v1.1</span>
+  <span class="header-badge">Sistema de Cotizaciones v1.2</span>
 </div>
 </header>
 <div class="container">
@@ -1579,6 +1579,7 @@ function generatePDFBase64() {
     const cvW = Math.ceil(qtCellW * scale);
     const cvH = Math.ceil(qtCellH * scale);
 
+    console.log('[QT-CANVAS] Rendering QT via canvas. qtNum=', qtNum, 'cellW=', qtCellW, 'mm');
     const cv = document.createElement('canvas');
     cv.width = cvW;
     cv.height = cvH;
