@@ -120,6 +120,7 @@ small{font-size:11px;color:var(--gray-500)}
 .text-right{text-align:right}
 @page{margin:1.5cm;size:A4}
 @media print{
+  #history-banner, .no-print, #notas-modal { display:none !important; }
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body{background:white;margin:0;padding:0}
   header,.steps-nav,.action-bar,#card-download,#card-preview-header{display:none!important}
@@ -184,6 +185,11 @@ small{font-size:11px;color:var(--gray-500)}
 
 
 
+
+/* Hide number input spinners */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+input[type=number] { -moz-appearance:textfield; }
 </style>
 </head>
 <body>
@@ -194,6 +200,20 @@ small{font-size:11px;color:var(--gray-500)}
     <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" opacity="0"/><path d="M9.4 16.6L4.8 12l1.4-1.4 3.2 3.2 6.4-6.4 1.4 1.4-7.8 7.8z" opacity="0"/><circle cx="12" cy="12" r="10" fill="none" stroke="white" stroke-width="1.5"/><path d="M12 6.5c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 10c-2.7 0-5.8-1.3-6-2v-1c.2-.7 3.3-2 6-2s5.8 1.3 6 2v1c-.2.7-3.3 2-6 2z" opacity="0"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="11" font-weight="bold">G</text>
   </svg>
     Asistente IA
+  </button>
+  <button id="notas-fab" onclick="openNotasModal()" title="Notas internas del equipo"
+    style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.12);
+      border:1px solid rgba(255,255,255,0.25);border-radius:8px;
+      color:white;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:500;
+      transition:background .2s;position:relative;"
+    onmouseover="this.style.background='rgba(255,255,255,0.22)'"
+    onmouseout="this.style.background='rgba(255,255,255,0.12)'">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+    Notas internas
+    <span id="notas-fab-dot" style="display:none;position:absolute;top:4px;right:4px;
+      width:8px;height:8px;background:#f5c842;border-radius:50%;"></span>
   </button>
   <span class="header-badge">Sistema de Cotizaciones v1.1</span>
 </div>
@@ -278,7 +298,7 @@ small{font-size:11px;color:var(--gray-500)}
             <tr>
               <th style="width:115px;">Categoría</th>
               <th style="min-width:180px;">Descripción</th>
-              <th style="width:64px;">Cant.</th>
+              <th style="width:72px;">Cant.</th>
               <th style="width:72px;">Tipo</th>
               <th style="width:100px;">Costo unit.</th>
               <th style="width:90px;color:#e8a020;">Nac.+Ship.</th>
@@ -485,7 +505,8 @@ function autoQtNum() {
 // ===== STEPS =====
 function goStep(n) {
   if (n===currentStep) return;
-  if (n>currentStep && !validateStep(currentStep)) return;
+  // Step 6 (historial) is always accessible — skip validation
+  if (n !== 6 && n>currentStep && !validateStep(currentStep)) return;
   currentStep = n;
   renderStep();
 }
@@ -582,7 +603,7 @@ function renderItems() {
           ${item.specs?'📋 Specs':'+ Specs'}
         </button>
       </td>
-      <td><input type="number" value="${item.qty}" min="0.01" step="0.01" onchange="updateItem(${item.id},'qty',parseFloat(this.value)||0)"></td>
+      <td style="width:70px;"><input type="number" value="${item.qty}" min="0" step="any" onchange="updateItem(${item.id},'qty',parseFloat(this.value)||0)" style="width:68px;text-align:center;font-family:'DM Mono',monospace;font-size:13px;"></td>
       <td><select onchange="updateItem(${item.id},'tipo_unidad',this.value)" style="font-size:11px;">
         ${UNIT_TYPES.map(u=>`<option value="${u.value}" ${u.value===item.tipo_unidad?'selected':''}>${u.label}</option>`).join('')}
       </select></td>
@@ -1539,8 +1560,18 @@ function generatePDFBase64() {
       // value 2
       setFill(i%2===0?[248,249,250]:WHITE); doc.rect(M+col1+col2+col3, y, col4, rh, 'F');
       setDraw([222,226,230]); doc.rect(M+col1+col2+col3, y, col4, rh, 'S');
-      setFont(row[3]===v('cl_qt_num')?'bold':'normal',8); setColor([33,37,41]);
-      doc.text(row[3], M+col1+col2+col3+2, y+rh/2+1.5);
+      const isQtNum = row[3]===v('cl_qt_num');
+      setFont(isQtNum?'bold':'normal', isQtNum?7:8); setColor([33,37,41]);
+      // For QT number: scale font down until it fits in one line
+      if(isQtNum) {
+        let qtFontSize = 8;
+        doc.setFont('helvetica','bold');
+        while(qtFontSize > 5 && doc.getTextWidth(row[3]) > col4-4) {
+          qtFontSize -= 0.5;
+          doc.setFontSize(qtFontSize);
+        }
+      }
+      doc.text(row[3]||'', M+col1+col2+col3+2, y+rh/2+1.5, {baseline:'middle'});
     }
     y += rh;
   });
@@ -1829,9 +1860,13 @@ async function finalizarCotizacion() {
   if (!confirm('¿Finalizar esta cotización y guardarla en el historial?\n\nEl sistema se reiniciará para una nueva cotización.')) return;
 
   const btn = document.querySelector('[onclick="finalizarCotizacion()"]');
-  const origText = btn.innerHTML;
-  btn.innerHTML = '⏳ Guardando...';
-  btn.disabled = true;
+  const origText = btn ? btn.innerHTML : '✅ Finalizar cotización';
+  if(btn) { btn.innerHTML = '⏳ Guardando...'; btn.disabled = true; }
+
+  const resetBtn = () => {
+    const b = document.querySelector('[onclick="finalizarCotizacion()"]');
+    if(b) { b.innerHTML = origText; b.disabled = false; }
+  };
 
   try {
     const {totalVenta, ivaAmt, total} = calcTotals();
@@ -1848,6 +1883,7 @@ async function finalizarCotizacion() {
       cl_vigencia: v('cl_vigencia'), cl_garantia: v('cl_garantia'),
       cl_elaborado: v('cl_elaborado'), cl_iva: v('cl_iva'),
       cl_notas: v('cl_notas'), cl_cierre: v('cl_cierre'),
+      cl_notas_internas: v('cl_notas_internas'),
       // Margins
       mg_ganancia: v('mg_ganancia'), mg_seguridad: v('mg_seguridad'),
       mg_descuento: v('mg_descuento'), mg_aplica: v('mg_aplica'),
@@ -1893,9 +1929,12 @@ async function finalizarCotizacion() {
       throw new Error(result.error || 'Error al guardar');
     }
   } catch(e) {
-    btn.innerHTML = origText;
-    btn.disabled = false;
+    resetBtn();
     showToast('Error al guardar: ' + e.message, 'error');
+  } finally {
+    // Guarantee button is always re-enabled after any outcome
+    // (resetSystem handles the success case via setTimeout, but we ensure it here too)
+    setTimeout(resetBtn, 3000);
   }
 }
 
@@ -1926,6 +1965,7 @@ function resetSystem() {
   document.getElementById('cl_iva').value = '13';
   document.getElementById('cl_notas').value = '';
   if(document.getElementById('cl_cierre')) document.getElementById('cl_cierre').value = '';
+  if(document.getElementById('cl_notas_internas')) document.getElementById('cl_notas_internas').value = '';
   document.getElementById('mg_ganancia').value = '25';
   document.getElementById('mg_seguridad').value = '5';
   document.getElementById('mg_descuento').value = '0';
@@ -2057,7 +2097,7 @@ function restoreSnapshot(snapshot) {
   // Restore client fields
   const fields = ['cl_empresa','cl_contacto','cl_email','cl_telefono','cl_direccion',
     'cl_moneda','cl_pago','cl_entrega','cl_plazo','cl_vigencia',
-    'cl_garantia','cl_elaborado','cl_iva','cl_notas','cl_cierre'];
+    'cl_garantia','cl_elaborado','cl_iva','cl_notas','cl_cierre','cl_notas_internas'];
   fields.forEach(id => {
     const el = document.getElementById(id);
     if(el && snapshot[id] !== undefined) el.value = snapshot[id];
@@ -2101,17 +2141,25 @@ function showHistoryBanner(qt_num) {
     banner = document.createElement('div');
     banner.id = 'history-banner';
     banner.style.cssText = 'background:var(--accent-light);border:1px solid #f5c842;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#7a5200;';
+    banner.className = 'no-print';
     document.querySelector('.container').insertBefore(banner, document.querySelector('.steps-nav').nextSibling);
   }
+  banner.setAttribute('data-html2canvas-ignore','true');
   banner.innerHTML = `
-    <div>
+    <div style="flex:1;">
       <strong>📂 Cotización cargada del historial: ${escHtml(qt_num)}</strong><br>
       <span>El N° de cotización y la fecha no se modifican automáticamente para mantener la integridad. Edite manualmente si es necesario.</span>
     </div>
-    <button onclick="this.parentElement.remove();loadedQtData=null;autoQtNum();" 
-      style="background:none;border:1px solid #f5c842;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px;color:#7a5200;flex-shrink:0;margin-left:16px;">
-      ✕ Nueva cotización
-    </button>
+    <div style="display:flex;gap:6px;flex-shrink:0;margin-left:16px;">
+      <button onclick="document.getElementById('history-banner').style.display='none';" 
+        style="background:none;border:1px solid #f5c842;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px;color:#7a5200;">
+        ✕ Cerrar
+      </button>
+      <button onclick="document.getElementById('history-banner').remove();loadedQtData=null;autoQtNum();" 
+        style="background:#7a5200;border:none;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px;color:white;">
+        + Nueva cotización
+      </button>
+    </div>
   `;
 }
 
@@ -2260,6 +2308,38 @@ ${buildQuoteContext()}`;
   }
 }
 
+
+// ===== NOTAS INTERNAS MODAL =====
+function openNotasModal() {
+  document.getElementById('notas-modal').classList.add('open');
+  const ta = document.getElementById('cl_notas_internas');
+  updateNotasCount();
+  ta.focus();
+}
+function closeNotasModal() {
+  document.getElementById('notas-modal').classList.remove('open');
+  updateNotasFab();
+}
+function saveNotasModal() {
+  closeNotasModal();
+  updateNotasFab();
+  showToast('Notas internas guardadas ✓', 'success');
+}
+function updateNotasCount() {
+  const ta = document.getElementById('cl_notas_internas');
+  const count = document.getElementById('notas-char-count');
+  if(ta && count) {
+    count.textContent = ta.value.length + ' caracteres';
+    ta.oninput = () => count.textContent = ta.value.length + ' caracteres';
+  }
+}
+function updateNotasFab() {
+  const ta = document.getElementById('cl_notas_internas');
+  const dot = document.getElementById('notas-fab-dot');
+  if(dot) dot.style.display = (ta && ta.value.trim()) ? 'block' : 'none';
+}
+// Notas fab is now in the header - always visible
+
 </script>
 
 <!-- ===== CURRENCY CALCULATOR MODAL ===== -->
@@ -2390,6 +2470,37 @@ ${buildQuoteContext()}`;
 </div>
 
 
+
+
+
+
+<!-- ===== NOTAS INTERNAS MODAL ===== -->
+<div class="modal-overlay" id="notas-modal" onclick="if(event.target===this)closeNotasModal()">
+  <div class="modal-box" style="width:520px;">
+    <div class="modal-hdr" style="background:linear-gradient(135deg,#7a5200,#b87a00);">
+      <h3 style="display:flex;align-items:center;gap:8px;">🔒 Notas internas del equipo</h3>
+      <button class="modal-close" onclick="closeNotasModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#fffdf0;border:1px solid #f5c842;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#7a5200;">
+        <strong>Solo para uso interno.</strong> Estas notas se guardan en el historial y son visibles para todo el equipo, pero <strong>no aparecen en el PDF, Word ni en la cotización enviada al cliente</strong>.
+      </div>
+      <div class="field">
+        <label style="font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;">Comentarios del equipo</label>
+        <textarea id="cl_notas_internas"
+          placeholder="Ej: Cliente solicitó descuento adicional — revisar con gerencia antes de enviar.&#10;Contactar a Juan para confirmar specs del PLC.&#10;Seguimiento pendiente para semana del 15."
+          style="min-height:140px;border-color:#f5c842;background:#fffdf5;font-size:13px;line-height:1.6;resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+        <span id="notas-char-count" style="font-size:11px;color:var(--gray-500);">0 caracteres</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" onclick="closeNotasModal()">Cancelar</button>
+          <button class="btn" onclick="saveNotasModal()" style="background:#b87a00;color:white;">💾 Guardar notas</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 
 
