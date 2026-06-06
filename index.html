@@ -1523,7 +1523,7 @@ function generatePDFBase64() {
   y += 16;
 
   // ── CLIENT TABLE ──
-  const col1=22, col2=48, col3=32, col4=78;
+  const col1=22, col2=68, col3=32, col4=58;
   const qtNum = v('cl_qt_num') || '';
 
   // Rows: [leftLabel, leftVal, rightLabel, rightVal]
@@ -1568,23 +1568,34 @@ function generatePDFBase64() {
     y += rh;
   });
 
-  // ── QT NUMBER — character-by-character render, impossible to wrap ──
+  // ── QT NUMBER — rendered via canvas image to bypass ALL jsPDF text wrapping ──
   {
-    const qtY = tableStartY + 4.2;
     const qtCellX = M + col1 + col2 + col3;
+    const qtCellW = col4;   // mm
+    const qtCellH = 7;      // mm (row height)
 
-    doc.setTextColor(33, 37, 41);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
+    // Convert mm to px at 300dpi for sharp rendering
+    const scale = 300 / 25.4; // px per mm
+    const cvW = Math.ceil(qtCellW * scale);
+    const cvH = Math.ceil(qtCellH * scale);
 
-    // Render each character individually at precise x positions
-    // This makes line-wrapping on hyphens physically impossible
-    let cx = qtCellX + 2;
-    for (let i = 0; i < qtNum.length; i++) {
-      const ch = qtNum[i];
-      doc.text(ch, cx, qtY);
-      cx += doc.getStringUnitWidth(ch) * 7 / doc.internal.scaleFactor;
-    }
+    const cv = document.createElement('canvas');
+    cv.width = cvW;
+    cv.height = cvH;
+    const ctx = cv.getContext('2d');
+
+    // White background (matches even row)
+    ctx.fillStyle = '#f8f9fa';
+    ctx.fillRect(0, 0, cvW, cvH);
+
+    // Draw QT number text — canvas NEVER wraps single-line text
+    ctx.fillStyle = '#212529';
+    ctx.font = `${Math.round(7 * scale * 0.352)}px Arial`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(qtNum, Math.round(2 * scale), Math.round(cvH / 2));
+
+    const imgData = cv.toDataURL('image/png');
+    doc.addImage(imgData, 'PNG', qtCellX, tableStartY, qtCellW, qtCellH, '', 'FAST');
   }
 
   y += 6;
