@@ -1568,26 +1568,23 @@ function generatePDFBase64() {
     y += rh;
   });
 
-  // ── QT NUMBER — rendered last, completely isolated, no state leakage ──
+  // ── QT NUMBER — character-by-character render, impossible to wrap ──
   {
-    const qtX = M + col1 + col2 + col3 + 2;
-    const qtY = tableStartY + 4.2; // vertically centered in row 0 (rh=7)
-    const availW = col4 - 4;
+    const qtY = tableStartY + 4.2;
+    const qtCellX = M + col1 + col2 + col3;
 
-    // Fresh font state — set everything explicitly
     doc.setTextColor(33, 37, 41);
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
 
-    // Find largest font size where text fits in availW (binary search)
-    let lo = 4.0, hi = 8.0;
-    for (let n = 0; n < 16; n++) {
-      const mid = (lo + hi) / 2;
-      doc.setFontSize(mid);
-      const w = doc.getStringUnitWidth(qtNum) * mid / doc.internal.scaleFactor;
-      if (w <= availW) lo = mid; else hi = mid;
+    // Render each character individually at precise x positions
+    // This makes line-wrapping on hyphens physically impossible
+    let cx = qtCellX + 2;
+    for (let i = 0; i < qtNum.length; i++) {
+      const ch = qtNum[i];
+      doc.text(ch, cx, qtY);
+      cx += doc.getStringUnitWidth(ch) * 7 / doc.internal.scaleFactor;
     }
-    doc.setFontSize(lo);
-    doc.text(qtNum, qtX, qtY);
   }
 
   y += 6;
