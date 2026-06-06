@@ -201,19 +201,10 @@ input[type=number] { -moz-appearance:textfield; }
   </svg>
     Asistente IA
   </button>
-  <button id="notas-fab" onclick="openNotasModal()" title="Notas internas del equipo"
-    style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.12);
-      border:1px solid rgba(255,255,255,0.25);border-radius:8px;
-      color:white;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:500;
-      transition:background .2s;position:relative;"
-    onmouseover="this.style.background='rgba(255,255,255,0.22)'"
-    onmouseout="this.style.background='rgba(255,255,255,0.12)'">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-    </svg>
+  <button id="notas-fab" onclick="openNotasModal()" title="Notas internas del equipo" style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;padding:6px 14px;border-radius:20px;cursor:pointer;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;transition:all .2s;position:relative;" onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     Notas internas
-    <span id="notas-fab-dot" style="display:none;position:absolute;top:4px;right:4px;
-      width:8px;height:8px;background:#f5c842;border-radius:50%;"></span>
+    <span id="notas-fab-dot" style="display:none;position:absolute;top:3px;right:3px;width:8px;height:8px;background:rgba(255,255,255,0.85);border-radius:50%;border:1.5px solid rgba(255,255,255,0.4);"></span>
   </button>
   <span class="header-badge">Sistema de Cotizaciones v1.1</span>
 </div>
@@ -1539,7 +1530,7 @@ function generatePDFBase64() {
     ['e-mail:', v('cl_email'), 'Moneda:', cur],
     ['Direccion:', v('cl_direccion'), '', ''],
   ];
-  const col1=22, col2=58, col3=22, col4=48;
+  const col1=22, col2=54, col3=26, col4=48;
   rows.forEach((row, i) => {
     const rh = i===4?8:7;
     // label cells
@@ -1561,17 +1552,23 @@ function generatePDFBase64() {
       setFill(i%2===0?[248,249,250]:WHITE); doc.rect(M+col1+col2+col3, y, col4, rh, 'F');
       setDraw([222,226,230]); doc.rect(M+col1+col2+col3, y, col4, rh, 'S');
       const isQtNum = row[3]===v('cl_qt_num');
-      setFont(isQtNum?'bold':'normal', isQtNum?7:8); setColor([33,37,41]);
-      // For QT number: scale font down until it fits in one line
+      setColor([33,37,41]);
       if(isQtNum) {
-        let qtFontSize = 8;
+        // Auto-scale font until QT number fits in one line inside col4
         doc.setFont('helvetica','bold');
-        while(qtFontSize > 5 && doc.getTextWidth(row[3]) > col4-4) {
-          qtFontSize -= 0.5;
+        let qtFontSize = 7;
+        doc.setFontSize(qtFontSize);
+        while(qtFontSize > 4 && doc.getTextWidth(row[3]||'') > col4 - 4) {
+          qtFontSize -= 0.25;
           doc.setFontSize(qtFontSize);
         }
+        doc.text(row[3]||'', M+col1+col2+col3+2, y+rh/2+1.5, {baseline:'middle'});
+        // Restore normal size
+        doc.setFontSize(8);
+      } else {
+        setFont('normal',8);
+        doc.text(row[3]||'', M+col1+col2+col3+2, y+rh/2+1.5, {baseline:'middle'});
       }
-      doc.text(row[3]||'', M+col1+col2+col3+2, y+rh/2+1.5, {baseline:'middle'});
     }
     y += rh;
   });
@@ -2477,25 +2474,29 @@ function updateNotasFab() {
 <!-- ===== NOTAS INTERNAS MODAL ===== -->
 <div class="modal-overlay" id="notas-modal" onclick="if(event.target===this)closeNotasModal()">
   <div class="modal-box" style="width:520px;">
-    <div class="modal-hdr" style="background:linear-gradient(135deg,#7a5200,#b87a00);">
-      <h3 style="display:flex;align-items:center;gap:8px;">🔒 Notas internas del equipo</h3>
+    <div class="modal-hdr">
+      <h3 style="display:flex;align-items:center;gap:9px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Notas internas
+      </h3>
       <button class="modal-close" onclick="closeNotasModal()">✕</button>
     </div>
     <div class="modal-body">
-      <div style="background:#fffdf0;border:1px solid #f5c842;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#7a5200;">
-        <strong>Solo para uso interno.</strong> Estas notas se guardan en el historial y son visibles para todo el equipo, pero <strong>no aparecen en el PDF, Word ni en la cotización enviada al cliente</strong>.
+      <div style="display:flex;align-items:flex-start;gap:10px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--gray-600);line-height:1.5;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Solo para uso interno del equipo. No aparece en el PDF, Word ni en la cotización del cliente.</span>
       </div>
       <div class="field">
-        <label style="font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.5px;">Comentarios del equipo</label>
+        <label style="font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px;">Comentarios</label>
         <textarea id="cl_notas_internas"
           placeholder="Ej: Cliente solicitó descuento adicional — revisar con gerencia antes de enviar.&#10;Contactar a Juan para confirmar specs del PLC.&#10;Seguimiento pendiente para semana del 15."
-          style="min-height:140px;border-color:#f5c842;background:#fffdf5;font-size:13px;line-height:1.6;resize:vertical;"></textarea>
+          style="min-height:140px;font-size:13px;line-height:1.6;resize:vertical;"></textarea>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
-        <span id="notas-char-count" style="font-size:11px;color:var(--gray-500);">0 caracteres</span>
+        <span id="notas-char-count" style="font-size:11px;color:var(--gray-400);">0 caracteres</span>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-secondary" onclick="closeNotasModal()">Cancelar</button>
-          <button class="btn" onclick="saveNotasModal()" style="background:#b87a00;color:white;">💾 Guardar notas</button>
+          <button class="btn btn-primary" onclick="saveNotasModal()">Guardar</button>
         </div>
       </div>
     </div>
