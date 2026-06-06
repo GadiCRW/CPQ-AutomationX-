@@ -1530,7 +1530,7 @@ function generatePDFBase64() {
     ['e-mail:', v('cl_email'), 'Moneda:', cur],
     ['Direccion:', v('cl_direccion'), '', ''],
   ];
-  const col1=22, col2=54, col3=26, col4=48;
+  const col1=22, col2=62, col3=32, col4=64;
   rows.forEach((row, i) => {
     const rh = i===4?8:7;
     // label cells
@@ -1557,7 +1557,9 @@ function generatePDFBase64() {
         // QT number: bold 6.5pt — fits any standard QT format (up to ~25 chars) in col4
         doc.setFont('helvetica','bold');
         doc.setFontSize(6.5);
-        doc.text(row[3]||'', M+col1+col2+col3+2, y+4.2);
+        // Pass text as single-element array — jsPDF renders exactly one line, no wrapping
+        const qtStr = (row[3]||'').replace(/-/g, '‑'); // non-breaking hyphens
+        doc.text([qtStr], M+col1+col2+col3+2, y+4.2);
         doc.setFontSize(8);
       } else {
         setFont('normal',8);
