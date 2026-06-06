@@ -1524,7 +1524,7 @@ function generatePDFBase64() {
 
   // ── CLIENT TABLE ──
   const rows = [
-    ['Cliente:', v('cl_empresa'), 'N de cotizacion:', v('cl_qt_num')],
+    ['Cliente:', v('cl_empresa'), 'N° cotización:', v('cl_qt_num')],
     ['Contacto:', v('cl_contacto'), 'Fecha:', formatDate(v('cl_fecha'))],
     ['Telefono:', v('cl_telefono'), 'Cond. pago:', v('cl_pago')],
     ['e-mail:', v('cl_email'), 'Moneda:', cur],
@@ -1546,7 +1546,7 @@ function generatePDFBase64() {
     if(i<4) {
       // label 2
       setFill(NAVY); doc.rect(M+col1+col2, y, col3, rh, 'F');
-      setFont('bold',8); setColor(WHITE);
+      setFont('bold', row[2].length > 12 ? 7 : 8); setColor(WHITE);
       doc.text(row[2], M+col1+col2+2, y+rh/2+1.5);
       // value 2
       setFill(i%2===0?[248,249,250]:WHITE); doc.rect(M+col1+col2+col3, y, col4, rh, 'F');
@@ -1554,20 +1554,14 @@ function generatePDFBase64() {
       const isQtNum = row[3]===v('cl_qt_num');
       setColor([33,37,41]);
       if(isQtNum) {
-        // Auto-scale font until QT number fits in one line inside col4
+        // QT number: bold 6.5pt — fits any standard QT format (up to ~25 chars) in col4
         doc.setFont('helvetica','bold');
-        let qtFontSize = 7;
-        doc.setFontSize(qtFontSize);
-        while(qtFontSize > 4 && doc.getTextWidth(row[3]||'') > col4 - 4) {
-          qtFontSize -= 0.25;
-          doc.setFontSize(qtFontSize);
-        }
-        doc.text(row[3]||'', M+col1+col2+col3+2, y+rh/2+1.5, {baseline:'middle'});
-        // Restore normal size
+        doc.setFontSize(6.5);
+        doc.text(row[3]||'', M+col1+col2+col3+2, y+4.2);
         doc.setFontSize(8);
       } else {
         setFont('normal',8);
-        doc.text(row[3]||'', M+col1+col2+col3+2, y+rh/2+1.5, {baseline:'middle'});
+        doc.text(row[3]||'', M+col1+col2+col3+2, y+4.2);
       }
     }
     y += rh;
