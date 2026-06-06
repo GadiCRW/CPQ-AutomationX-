@@ -1523,72 +1523,73 @@ function generatePDFBase64() {
   y += 16;
 
   // ── CLIENT TABLE ──
+  const col1=22, col2=48, col3=32, col4=78;
+  const qtNum = v('cl_qt_num') || '';
+
+  // Rows: [leftLabel, leftVal, rightLabel, rightVal]
+  // QT number cell (row 0 right) is rendered separately AFTER the loop
   const rows = [
-    ['Cliente:', v('cl_empresa'), 'N° cotización:', v('cl_qt_num')],
-    ['Contacto:', v('cl_contacto'), 'Fecha:', formatDate(v('cl_fecha'))],
-    ['Telefono:', v('cl_telefono'), 'Cond. pago:', v('cl_pago')],
-    ['e-mail:', v('cl_email'), 'Moneda:', cur],
-    ['Direccion:', v('cl_direccion'), '', ''],
+    ['Cliente:',   v('cl_empresa'),              'N° cotización:', ''],
+    ['Contacto:',  v('cl_contacto'),             'Fecha:',       formatDate(v('cl_fecha'))],
+    ['Telefono:',  v('cl_telefono'),             'Cond. pago:',  v('cl_pago')],
+    ['e-mail:',    v('cl_email'),                'Moneda:',      cur],
+    ['Direccion:', v('cl_direccion'),            '',             ''],
   ];
-  const col1=22, col2=62, col3=32, col4=64;
+
+  // Track y position of row 0 for QT overlay
+  const tableStartY = y;
+
   rows.forEach((row, i) => {
-    const rh = i===4?8:7;
-    // label cells
+    const rh = i===4 ? 8 : 7;
+    // Left label
     setFill(NAVY); doc.rect(M, y, col1, rh, 'F');
-    setFont('bold',8); setColor(WHITE);
+    setFont('bold', 8); setColor(WHITE);
     doc.text(row[0], M+2, y+rh/2+1.5);
-    // value cell
+    // Left value
     setFill(i%2===0?[248,249,250]:WHITE); doc.rect(M+col1, y, col2, rh, 'F');
     setDraw([222,226,230]); doc.rect(M+col1, y, col2, rh, 'S');
-    setFont('normal',8); setColor([33,37,41]);
-    const v2 = row[1].length>28 ? row[1].substring(0,26)+'...' : row[1];
+    setFont('normal', 8); setColor([33,37,41]);
+    const v2 = row[1].length > 28 ? row[1].substring(0,26)+'...' : row[1];
     doc.text(v2, M+col1+2, y+rh/2+1.5);
-    if(i<4) {
-      // label 2
+    if (i < 4) {
+      // Right label
       setFill(NAVY); doc.rect(M+col1+col2, y, col3, rh, 'F');
       setFont('bold', row[2].length > 12 ? 7 : 8); setColor(WHITE);
       doc.text(row[2], M+col1+col2+2, y+rh/2+1.5);
-      // value 2
+      // Right value cell background
       setFill(i%2===0?[248,249,250]:WHITE); doc.rect(M+col1+col2+col3, y, col4, rh, 'F');
       setDraw([222,226,230]); doc.rect(M+col1+col2+col3, y, col4, rh, 'S');
-      // i===0 is always the QT number row — don't rely on value comparison
-      const isQtNum = i === 0;
-      setColor([33,37,41]);
-      if(isQtNum) {
-        const qtVal = row[3] || '';
-        const qtX = M+col1+col2+col3+2;
-        const qtY = y + 4.2;
-        const availW = col4 - 4; // mm available inside cell
-
-        // Save current doc state
-        const prevFont = doc.getFont();
-        const prevSize = doc.getFontSize();
-
-        doc.setFont('helvetica', 'bold');
-
-        // Binary search for font size that fits in one line
-        let lo = 4, hi = 7.5, fs = 6.5;
-        for (let iter = 0; iter < 12; iter++) {
-          fs = (lo + hi) / 2;
-          doc.setFontSize(fs);
-          const tw = doc.getStringUnitWidth(qtVal) * fs / doc.internal.scaleFactor;
-          if (tw <= availW) lo = fs; else hi = fs;
-        }
-        doc.setFontSize(lo);
-
-        // Render as single string — no splitTextToSize, no array, no maxWidth
-        doc.text(String(qtVal), qtX, qtY);
-
-        // Restore state
-        doc.setFont(prevFont.fontName, prevFont.fontStyle);
-        doc.setFontSize(prevSize);
-      } else {
-        setFont('normal', 8);
-        doc.text(row[3] || '', M+col1+col2+col3+2, y+4.2);
+      // Right value text (skip row 0 — QT rendered separately below)
+      if (i > 0) {
+        setFont('normal', 8); setColor([33,37,41]);
+        doc.text(row[3] || '', M+col1+col2+col3+2, y+rh/2+1.5);
       }
     }
     y += rh;
   });
+
+  // ── QT NUMBER — rendered last, completely isolated, no state leakage ──
+  {
+    const qtX = M + col1 + col2 + col3 + 2;
+    const qtY = tableStartY + 4.2; // vertically centered in row 0 (rh=7)
+    const availW = col4 - 4;
+
+    // Fresh font state — set everything explicitly
+    doc.setTextColor(33, 37, 41);
+    doc.setFont('helvetica', 'bold');
+
+    // Find largest font size where text fits in availW (binary search)
+    let lo = 4.0, hi = 8.0;
+    for (let n = 0; n < 16; n++) {
+      const mid = (lo + hi) / 2;
+      doc.setFontSize(mid);
+      const w = doc.getStringUnitWidth(qtNum) * mid / doc.internal.scaleFactor;
+      if (w <= availW) lo = mid; else hi = mid;
+    }
+    doc.setFontSize(lo);
+    doc.text(qtNum, qtX, qtY);
+  }
+
   y += 6;
 
   // ── INTRO ──
