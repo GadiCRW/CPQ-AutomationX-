@@ -247,7 +247,22 @@ input[type=number] { -moz-appearance:textfield; }
         <div class="form-grid">
           <div class="field"><label>Fecha</label><input type="date" id="cl_fecha"></div>
           <div class="field"><label>Moneda</label><select id="cl_moneda"><option value="USD">USD — Dólares</option><option value="CRC">CRC — Colones</option><option value="EUR">EUR — Euros</option></select></div>
-          <div class="field"><label>Condiciones de pago</label><select id="cl_pago"><option>Contado</option><option>Crédito 30 días</option><option selected>Crédito 60 días</option><option>Crédito 90 días</option><option>50% adelanto / 50% entrega</option><option>Por negociar</option></select></div>
+          <div class="field"><label>Condiciones de pago</label>
+  <select id="cl_pago_sel" onchange="
+    const custom=document.getElementById('cl_pago_custom');
+    if(this.value==='__custom__'){custom.style.display='block';custom.focus();custom.select();}
+    else{custom.style.display='none';document.getElementById('cl_pago').value=this.value;}">
+    <option value="Contado">Contado</option>
+    <option value="Crédito 30 días">Crédito 30 días</option>
+    <option value="Crédito 60 días" selected>Crédito 60 días</option>
+    <option value="Crédito 90 días">Crédito 90 días</option>
+    <option value="50% adelanto / 50% entrega">50% adelanto / 50% entrega</option>
+    <option value="Por negociar">Por negociar</option>
+    <option value="__custom__">✏️ Personalizado...</option>
+  </select>
+  <input id="cl_pago_custom" type="text" placeholder="Escriba la condición..." style="display:none;margin-top:6px;" oninput="document.getElementById('cl_pago').value=this.value;">
+  <input id="cl_pago" type="hidden" value="Crédito 60 días">
+</div>
           <div class="field"><label>Lugar de entrega</label><input type="text" id="cl_entrega" placeholder="Ej. Alajuela, San Carlos"></div>
           <div class="field"><label>Plazo de entrega</label><input type="text" id="cl_plazo" placeholder="Ej. 8 – 10 semanas"></div>
           <div class="field"><label>Vigencia de la oferta</label><input type="text" id="cl_vigencia" placeholder="Ej. 4 semanas"></div>
@@ -2134,6 +2149,16 @@ function restoreSnapshot(snapshot) {
     const el = document.getElementById(id);
     if(el && snapshot[id] !== undefined) el.value = snapshot[id];
   });
+  // Sync cl_pago visible selector with restored value
+  (function(){
+    const val = document.getElementById('cl_pago')?.value || '';
+    const sel = document.getElementById('cl_pago_sel');
+    const custom = document.getElementById('cl_pago_custom');
+    if(!sel) return;
+    let found = false;
+    for(let opt of sel.options){ if(opt.value===val){sel.value=val;found=true;break;} }
+    if(!found && val){ sel.value='__custom__'; custom.style.display='block'; custom.value=val; }
+  })();
   updateNotasFab(); // show dot if restored notes exist
 
   // ⚠ INTEGRIDAD: restore QT number and date EXACTLY as saved — no auto-generation
